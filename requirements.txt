@@ -1,0 +1,11 @@
+# Yahoo Fantasy Basketball Predictor
+# Dependencies
+
+flask==3.0.0
+requests==2.31.0
+pandas==2.1.4
+numpy==1.26.2
+python-dateutil==2.8.2
+yahoo-oauth==2.0
+rauth==0.7.3
+python-dotenv==1.0.0
