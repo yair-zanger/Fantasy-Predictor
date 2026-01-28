@@ -7,7 +7,7 @@ import json
 
 from yahoo_auth import auth
 from yahoo_api import api
-from predictor import predictor
+from predictor import predictor, PlayoffWeekError
 from config import CATEGORIES
 
 app = Flask(__name__)
@@ -121,11 +121,12 @@ def predict(league_key):
         current_week = int(league_info['current_week']) if league_info else 1
         start_week = int(league_info['start_week']) if league_info else 1
         end_week = int(league_info['end_week']) if league_info else 24
+        playoff_start_week = int(league_info['playoff_start_week']) if league_info and league_info.get('playoff_start_week') else None
         
         # Use current week if not specified
         selected_week = week if week else current_week
         
-        prediction = predictor.predict_matchup(league_key, selected_week)
+        prediction = predictor.predict_matchup(league_key, selected_week, current_week)
         return render_template('prediction.html', 
                              prediction=prediction,
                              league_key=league_key,
@@ -133,8 +134,63 @@ def predict(league_key):
                              current_week=current_week,
                              start_week=start_week,
                              end_week=end_week,
-                             selected_week=selected_week)
+                             selected_week=selected_week,
+                             playoff_start_week=playoff_start_week)
+    except PlayoffWeekError as e:
+        # Playoff week - show friendly message
+        return render_template('playoff.html',
+                             league_key=league_key,
+                             selected_week=selected_week,
+                             current_week=current_week,
+                             start_week=start_week,
+                             end_week=end_week,
+                             playoff_start_week=playoff_start_week,
+                             message=e.message)
     except Exception as e:
+        return render_template('error.html', error=str(e))
+
+
+@app.route('/predict/<league_key>/all')
+def predict_all(league_key):
+    """Show predictions for all matchups in the league"""
+    if not auth.is_authenticated():
+        return redirect(url_for('login'))
+    
+    week = request.args.get('week', type=int)
+    
+    try:
+        # Get league info for week navigation
+        leagues = api.get_user_leagues()
+        league_info = next((l for l in leagues if l['league_key'] == league_key), None)
+        
+        current_week = int(league_info['current_week']) if league_info else 1
+        start_week = int(league_info['start_week']) if league_info else 1
+        end_week = int(league_info['end_week']) if league_info else 24
+        league_name = league_info['name'] if league_info else 'League'
+        
+        # Use current week if not specified
+        selected_week = week if week else current_week
+        
+        # Get all matchup predictions
+        predictions = predictor.predict_all_matchups(league_key, selected_week)
+        
+        # Get my team to highlight
+        my_team = api.get_my_team(league_key)
+        my_team_key = my_team['team_key'] if my_team else None
+        
+        return render_template('all_matchups.html',
+                             predictions=predictions,
+                             league_key=league_key,
+                             league_name=league_name,
+                             categories=CATEGORIES,
+                             current_week=current_week,
+                             start_week=start_week,
+                             end_week=end_week,
+                             selected_week=selected_week,
+                             my_team_key=my_team_key)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
         return render_template('error.html', error=str(e))
 
 

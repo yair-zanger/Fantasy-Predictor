@@ -44,10 +44,17 @@ class YahooFantasyAPI:
     
     def get_user_leagues(self, game_key: str = 'nba') -> List[Dict]:
         """Get all leagues for the current user"""
-        root = self._make_request(f"users;use_login=1/games;game_keys={game_key}/leagues")
+        root = self._make_request(f"users;use_login=1/games;game_keys={game_key}/leagues;out=settings")
         
         leagues = []
         for league in root.findall('.//yh:league', NS):
+            # Get playoff start week from settings (try multiple paths)
+            playoff_start_week = (
+                self._get_text(league, './/yh:playoff_start_week') or
+                self._get_text(league, 'yh:settings/yh:playoff_start_week') or
+                self._get_text(league, 'yh:playoff_start_week')
+            )
+            
             league_data = {
                 'league_key': self._get_text(league, 'yh:league_key'),
                 'league_id': self._get_text(league, 'yh:league_id'),
@@ -56,6 +63,7 @@ class YahooFantasyAPI:
                 'current_week': self._get_text(league, 'yh:current_week'),
                 'start_week': self._get_text(league, 'yh:start_week'),
                 'end_week': self._get_text(league, 'yh:end_week'),
+                'playoff_start_week': playoff_start_week,
             }
             leagues.append(league_data)
         
@@ -188,6 +196,42 @@ class YahooFantasyAPI:
                 result['opponent'] = team_data
         
         return result
+    
+    def get_league_scoreboard(self, league_key: str, week: int = None) -> List[Dict]:
+        """Get all matchups in the league for a given week"""
+        endpoint = f"league/{league_key}/scoreboard"
+        if week:
+            endpoint += f";week={week}"
+        
+        root = self._make_request(endpoint)
+        
+        matchups = []
+        for matchup in root.findall('.//yh:matchup', NS):
+            matchup_data = {
+                'week': self._get_text(matchup, 'yh:week'),
+                'teams': []
+            }
+            
+            for team in matchup.findall('.//yh:team', NS):
+                team_data = {
+                    'team_key': self._get_text(team, 'yh:team_key'),
+                    'team_id': self._get_text(team, 'yh:team_id'),
+                    'name': self._get_text(team, 'yh:name'),
+                    'manager': self._get_text(team, './/yh:manager/yh:nickname'),
+                    'stats': {}
+                }
+                
+                # Get current stats for this team
+                for stat in team.findall('.//yh:stat', NS):
+                    stat_id = self._get_text(stat, 'yh:stat_id')
+                    value = self._get_text(stat, 'yh:value')
+                    team_data['stats'][stat_id] = self._parse_stat_value(value)
+                
+                matchup_data['teams'].append(team_data)
+            
+            matchups.append(matchup_data)
+        
+        return matchups
     
     def get_player_stats_averages(self, player_keys: List[str]) -> Dict[str, Dict]:
         """Get season stats for multiple players"""

@@ -496,3 +496,133 @@ def get_team_game_today(team_abbr: str) -> Optional[Dict]:
     team_abbr = schedule._normalize_team_abbr(team_abbr)
     games = get_todays_games()
     return games.get(team_abbr)
+
+
+def get_team_weekly_schedule(team_abbr: str, week_start: datetime = None) -> List[Dict]:
+    """
+    Get detailed weekly schedule for a team.
+    Returns list of games for each day of the week with:
+    - date: str (YYYY-MM-DD)
+    - day_name: str (Hebrew day name)
+    - has_game: bool
+    - opponent: str (team abbr) or None
+    - time_israel: str (HH:MM) or None
+    - is_home: bool or None
+    """
+    team_abbr = schedule._normalize_team_abbr(team_abbr)
+    
+    # Get week dates
+    if week_start is None:
+        today = datetime.now()
+        days_since_monday = today.weekday()
+        week_start = today - timedelta(days=days_since_monday)
+    
+    week_start = week_start.replace(hour=0, minute=0, second=0, microsecond=0)
+    week_end = week_start + timedelta(days=6)
+    
+    # Hebrew day names (Monday to Sunday)
+    hebrew_days = ['שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת', 'ראשון']
+    
+    # Try to fetch detailed schedule from NBA API
+    games_by_date = {}
+    
+    try:
+        url = "https://cdn.nba.com/static/json/staticData/scheduleLeagueV2.json"
+        response = requests.get(url, timeout=10)
+        
+        if response.status_code == 200:
+            data = response.json()
+            game_dates = data.get('leagueSchedule', {}).get('gameDates', [])
+            
+            for game_date in game_dates:
+                date_str = game_date.get('gameDate', '')[:10]
+                
+                try:
+                    game_dt = datetime.strptime(date_str, '%Y-%m-%d')
+                except:
+                    continue
+                
+                if week_start <= game_dt <= week_end:
+                    for game in game_date.get('games', []):
+                        home_team = game.get('homeTeam', {}).get('teamTricode', '')
+                        away_team = game.get('awayTeam', {}).get('teamTricode', '')
+                        game_time_utc = game.get('gameDateTimeUTC', '')
+                        
+                        # Check if this game involves our team
+                        if team_abbr not in [home_team, away_team]:
+                            # Try alternate abbreviations
+                            alt_abbrs = {'GSW': 'GS', 'NOP': 'NO', 'NYK': 'NY', 'PHO': 'PHX', 'SAS': 'SA'}
+                            found = False
+                            for main, alt in alt_abbrs.items():
+                                if team_abbr == main and (alt in [home_team, away_team]):
+                                    found = True
+                                    break
+                                if team_abbr == alt and (main in [home_team, away_team]):
+                                    found = True
+                                    break
+                            if not found:
+                                continue
+                        
+                        # Convert UTC time to Israel time
+                        israel_time = None
+                        if game_time_utc:
+                            try:
+                                utc_dt = datetime.strptime(game_time_utc, '%Y-%m-%dT%H:%M:%SZ')
+                                # Israel is UTC+2 (winter) or UTC+3 (summer/DST)
+                                today = datetime.now()
+                                israel_offset = 2
+                                if 3 <= today.month <= 10:  # Approximate DST period
+                                    israel_offset = 3
+                                israel_dt = utc_dt + timedelta(hours=israel_offset)
+                                israel_time = israel_dt.strftime('%H:%M')
+                            except:
+                                israel_time = None
+                        
+                        is_home = (team_abbr == home_team or 
+                                   (team_abbr in alt_abbrs.values() and alt_abbrs.get(home_team) == team_abbr) or
+                                   (team_abbr in alt_abbrs.keys() and home_team == alt_abbrs.get(team_abbr)))
+                        opponent = away_team if is_home else home_team
+                        
+                        games_by_date[date_str] = {
+                            'opponent': opponent,
+                            'time_israel': israel_time,
+                            'is_home': is_home
+                        }
+    except Exception as e:
+        print(f"Error fetching weekly schedule: {e}")
+    
+    # Build weekly schedule
+    weekly_schedule = []
+    current_day = week_start
+    
+    while current_day <= week_end:
+        date_str = current_day.strftime('%Y-%m-%d')
+        day_index = current_day.weekday()  # Monday=0, Sunday=6
+        
+        game_info = games_by_date.get(date_str)
+        
+        # Also check hardcoded schedule as fallback
+        if not game_info and date_str in HARDCODED_SCHEDULE:
+            teams_playing = HARDCODED_SCHEDULE[date_str]
+            if team_abbr in teams_playing:
+                game_info = {
+                    'opponent': '?',
+                    'time_israel': None,
+                    'is_home': None
+                }
+        
+        weekly_schedule.append({
+            'date': date_str,
+            'day_name': hebrew_days[day_index],
+            'day_short': hebrew_days[day_index][:2] + "'",  # ב', ג', etc.
+            'has_game': game_info is not None,
+            'opponent': game_info.get('opponent') if game_info else None,
+            'time_israel': game_info.get('time_israel') if game_info else None,
+            'is_home': game_info.get('is_home') if game_info else None,
+            'is_today': current_day.date() == datetime.now().date(),
+            'is_past': current_day.date() < datetime.now().date()
+        })
+        
+        current_day += timedelta(days=1)
+    
+    return weekly_schedule
