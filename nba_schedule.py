@@ -56,6 +56,41 @@ for abbr, name in NBA_TEAMS.items():
 
 CACHE_FILE = 'nba_schedule_cache.json'
 
+# Hardcoded schedule from hashtagbasketball.com for current weeks
+# Source: https://hashtagbasketball.com/advanced-nba-schedule-grid
+# Week 15: Jan 26 - Feb 1, 2026
+HARDCODED_SCHEDULE = {
+    # Monday Jan 26, 2026
+    '2026-01-26': ['ATL', 'IND', 'BOS', 'POR', 'CHI', 'LAL', 'CLE', 'ORL', 'GSW', 'MIN', 'HOU', 'MEM', 'PHI', 'CHA'],
+    # Tuesday Jan 27, 2026
+    '2026-01-27': ['BKN', 'PHO', 'DEN', 'DET', 'LAC', 'UTA', 'MIL', 'PHI', 'NOP', 'OKC', 'NYK', 'SAC', 'POR', 'WAS'],
+    # Wednesday Jan 28, 2026
+    '2026-01-28': ['ATL', 'BOS', 'CHA', 'MEM', 'CHI', 'IND', 'CLE', 'LAL', 'DAL', 'MIN', 'GSW', 'UTA', 'HOU', 'SAS', 'MIA', 'ORL', 'NYK', 'TOR'],
+    # Thursday Jan 29, 2026
+    '2026-01-29': ['ATL', 'HOU', 'BKN', 'DEN', 'CHA', 'DAL', 'DET', 'PHO', 'MIA', 'CHI', 'MIL', 'WAS', 'MIN', 'OKC', 'PHI', 'SAC'],
+    # Friday Jan 30, 2026
+    '2026-01-30': ['BKN', 'UTA', 'BOS', 'SAC', 'CLE', 'PHO', 'DEN', 'LAC', 'DET', 'GSW', 'LAL', 'WAS', 'MEM', 'NOP', 'NYK', 'POR', 'ORL', 'TOR'],
+    # Saturday Jan 31, 2026
+    '2026-01-31': ['ATL', 'IND', 'CHA', 'SAS', 'CHI', 'MIA', 'DAL', 'HOU', 'MEM', 'MIN', 'NOP', 'PHI'],
+    # Sunday Feb 1, 2026
+    '2026-02-01': ['BKN', 'DET', 'BOS', 'MIL', 'CHI', 'MIA', 'CLE', 'POR', 'DEN', 'OKC', 'LAC', 'PHO', 'LAL', 'NYK', 'ORL', 'SAS', 'TOR', 'UTA', 'WAS', 'SAC'],
+    
+    # Week 16: Feb 2 - Feb 8, 2026 (partial data)
+    '2026-02-02': ['CHA', 'NOP', 'HOU', 'IND', 'MEM', 'MIN'],
+    '2026-02-03': ['ATL', 'MIA', 'BKN', 'LAL', 'BOS', 'DAL', 'CHI', 'MIL', 'DEN', 'DET', 'GSW', 'PHI', 'IND', 'UTA', 'NYK', 'WAS', 'OKC', 'ORL', 'PHO', 'POR'],
+}
+
+# Games per team per week from hashtagbasketball.com
+# Week 15: Jan 26 - Feb 1, 2026
+WEEKLY_GAMES = {
+    '2026-01-26': {  # Week starting Jan 26
+        'ATL': 4, 'BOS': 4, 'BKN': 4, 'CHA': 4, 'CHI': 5, 'CLE': 4, 'DAL': 3, 'DEN': 4,
+        'DET': 4, 'GSW': 3, 'HOU': 4, 'IND': 3, 'LAC': 3, 'LAL': 4, 'MEM': 4, 'MIA': 4,
+        'MIL': 3, 'MIN': 4, 'NOP': 3, 'NYK': 4, 'OKC': 3, 'ORL': 4, 'PHI': 4, 'PHO': 4,
+        'POR': 4, 'SAC': 4, 'SAS': 3, 'TOR': 3, 'UTA': 4, 'WAS': 4,
+    }
+}
+
 
 class NBASchedule:
     """Fetch and manage NBA schedule data"""
@@ -246,10 +281,36 @@ schedule = NBASchedule()
 
 
 def get_team_games_this_week(team_abbr: str) -> int:
-    """Convenience function to get games count for a team"""
+    """Convenience function to get games count for a team.
+    
+    First checks hardcoded weekly games from hashtagbasketball.com,
+    then falls back to API or default.
+    """
+    # Normalize team abbreviation
+    team_abbr = schedule._normalize_team_abbr(team_abbr)
+    
+    # Get current week start
+    today = datetime.now()
+    days_since_monday = today.weekday()
+    week_start = today - timedelta(days=days_since_monday)
+    week_start_str = week_start.strftime('%Y-%m-%d')
+    
+    # Check hardcoded weekly games first
+    if week_start_str in WEEKLY_GAMES:
+        weekly_data = WEEKLY_GAMES[week_start_str]
+        if team_abbr in weekly_data:
+            return weekly_data[team_abbr]
+        # Try alternate abbreviations
+        alt_abbrs = {'GSW': 'GS', 'NOP': 'NO', 'NYK': 'NY', 'PHO': 'PHX', 'SAS': 'SA'}
+        for main, alt in alt_abbrs.items():
+            if team_abbr == main and alt in weekly_data:
+                return weekly_data[alt]
+            if team_abbr == alt and main in weekly_data:
+                return weekly_data[main]
+    
+    # Fallback to API
     try:
         games = schedule.get_games_count_this_week(team_abbr)
-        # If we get 0, use default of 3-4 games (typical NBA week)
         if games == 0:
             return 3
         return games
@@ -263,19 +324,31 @@ def get_all_games_this_week() -> Dict[str, int]:
 
 
 def get_teams_playing_on_date(date: datetime) -> List[str]:
-    """Get list of team abbreviations playing on a specific date"""
+    """Get list of team abbreviations playing on a specific date.
+    
+    First checks hardcoded schedule from hashtagbasketball.com,
+    then falls back to NBA API if date not found.
+    """
+    target_date = date.strftime('%Y-%m-%d')
+    
+    # First, check hardcoded schedule (most reliable for current season)
+    if target_date in HARDCODED_SCHEDULE:
+        teams = HARDCODED_SCHEDULE[target_date]
+        print(f"[DEBUG] Using hardcoded schedule for {target_date}: {len(teams)} teams")
+        return teams
+    
+    # Fallback to NBA API
     try:
         url = "https://cdn.nba.com/static/json/staticData/scheduleLeagueV2.json"
         response = requests.get(url, timeout=10)
         
         if response.status_code != 200:
-            # Fallback: return empty list (all teams could be playing)
+            print(f"[DEBUG] NBA API failed for {target_date}, no hardcoded data available")
             return []
         
         data = response.json()
         game_dates = data.get('leagueSchedule', {}).get('gameDates', [])
         
-        target_date = date.strftime('%Y-%m-%d')
         teams_playing = []
         
         for game_date in game_dates:
@@ -291,6 +364,11 @@ def get_teams_playing_on_date(date: datetime) -> List[str]:
                     if away_team and away_team not in teams_playing:
                         teams_playing.append(away_team)
                 break
+        
+        if teams_playing:
+            print(f"[DEBUG] Using NBA API for {target_date}: {len(teams_playing)} teams")
+        else:
+            print(f"[DEBUG] No games found for {target_date}")
         
         return teams_playing
         
