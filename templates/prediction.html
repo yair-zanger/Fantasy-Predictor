@@ -343,11 +343,12 @@
         font-size: 1.25rem;
     }
     
-    /* Initial Projection Inline */
-    .initial-inline {
-        font-size: 0.7rem;
-        color: var(--text-muted);
-        margin-top: 2px;
+    /* Current Stats Inline */
+    .current-inline {
+        font-size: 0.75rem;
+        color: #10b981;
+        margin-top: 3px;
+        font-weight: 600;
     }
     
     /* Players Section */
@@ -459,13 +460,14 @@
         display: flex;
         gap: 3px;
         margin-top: 0.5rem;
+        flex-wrap: wrap;
     }
     
     .day-slot {
         display: flex;
         flex-direction: column;
         align-items: center;
-        min-width: 36px;
+        min-width: 42px;
         padding: 4px 3px;
         border-radius: 6px;
         font-size: 0.65rem;
@@ -509,17 +511,18 @@
         justify-content: center;
     }
     
-    .day-slot .day-name {
+    .day-slot .day-date {
         font-weight: 600;
         color: var(--text-secondary);
         margin-bottom: 2px;
+        font-size: 0.6rem;
     }
     
-    .day-slot.has-game .day-name {
+    .day-slot.has-game .day-date {
         color: var(--accent-green);
     }
     
-    .day-slot.is-today .day-name {
+    .day-slot.is-today .day-date {
         color: var(--accent-orange);
     }
     
@@ -563,7 +566,7 @@
         }
         
         .day-slot {
-            min-width: 28px;
+            min-width: 36px;
             padding: 3px 2px;
             font-size: 0.6rem;
         }
@@ -677,36 +680,121 @@
         opacity: 0;
         animation: fadeIn 0.3s ease-out forwards;
     }
-    /* Navigation Links */
-    .nav-links {
+    /* Side Menu */
+    .menu-toggle {
+        position: fixed;
+        top: 1rem;
+        right: 1rem;
+        z-index: 1001;
+        width: 48px;
+        height: 48px;
+        background: var(--bg-card);
+        border: 2px solid var(--accent-orange);
+        border-radius: 12px;
+        cursor: pointer;
         display: flex;
+        flex-direction: column;
         justify-content: center;
-        gap: 1rem;
-        margin-bottom: 1.5rem;
+        align-items: center;
+        gap: 5px;
+        transition: all 0.3s;
+    }
+    
+    .menu-toggle:hover {
+        background: var(--accent-orange);
+    }
+    
+    .menu-toggle span {
+        width: 24px;
+        height: 3px;
+        background: var(--text-primary);
+        border-radius: 2px;
+        transition: all 0.3s;
+    }
+    
+    .menu-toggle:hover span {
+        background: white;
+    }
+    
+    .menu-toggle.open span:nth-child(1) {
+        transform: rotate(45deg) translate(5px, 5px);
+    }
+    
+    .menu-toggle.open span:nth-child(2) {
         opacity: 0;
-        animation: fadeIn 0.3s ease-out 0.1s forwards;
+    }
+    
+    .menu-toggle.open span:nth-child(3) {
+        transform: rotate(-45deg) translate(6px, -6px);
+    }
+    
+    .side-menu {
+        position: fixed;
+        top: 0;
+        right: -280px;
+        width: 280px;
+        height: 100vh;
+        background: var(--bg-card);
+        border-left: 2px solid var(--border-color);
+        z-index: 1000;
+        transition: right 0.3s ease;
+        padding: 5rem 1.5rem 2rem;
+        overflow-y: auto;
+    }
+    
+    .side-menu.open {
+        right: 0;
+    }
+    
+    .side-menu-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 999;
+        opacity: 0;
+        visibility: hidden;
+        transition: all 0.3s;
+    }
+    
+    .side-menu-overlay.open {
+        opacity: 1;
+        visibility: visible;
+    }
+    
+    .side-menu-title {
+        font-size: 1.2rem;
+        font-weight: 700;
+        color: var(--accent-orange);
+        margin-bottom: 1.5rem;
+        padding-bottom: 0.75rem;
+        border-bottom: 1px solid var(--border-color);
     }
     
     .nav-link {
-        display: inline-flex;
+        display: flex;
         align-items: center;
-        gap: 0.5rem;
-        padding: 0.75rem 1.5rem;
-        background: var(--bg-card);
+        gap: 0.75rem;
+        padding: 1rem;
+        background: var(--bg-secondary);
         border: 1px solid var(--border-color);
-        border-radius: 12px;
+        border-radius: 10px;
         color: var(--text-primary);
         text-decoration: none;
         transition: all 0.3s;
-        font-size: 0.9rem;
+        font-size: 1rem;
+        margin-bottom: 0.75rem;
     }
-    
+
     .nav-link:hover {
         background: var(--accent-blue);
         border-color: var(--accent-blue);
         color: white;
+        transform: translateX(-5px);
     }
-    
+
     .nav-link.active {
         background: var(--accent-orange);
         border-color: var(--accent-orange);
@@ -716,16 +804,30 @@
 {% endblock %}
 
 {% block content %}
-<!-- Navigation Links -->
-<div class="nav-links">
+<!-- Side Menu Toggle -->
+<button class="menu-toggle" onclick="toggleSideMenu()" id="menuToggle">
+    <span></span>
+    <span></span>
+    <span></span>
+</button>
+
+<!-- Side Menu Overlay -->
+<div class="side-menu-overlay" id="menuOverlay" onclick="toggleSideMenu()"></div>
+
+<!-- Side Menu -->
+<div class="side-menu" id="sideMenu">
+    <div class="side-menu-title">📋 ניווט</div>
     <a href="{{ url_for('dashboard') }}" class="nav-link">
-        🏠 דשבורד
+        🏀 כל הליגות
     </a>
     <a href="{{ url_for('predict', league_key=league_key, week=selected_week) }}" class="nav-link active">
         🎯 המאצ'אפ שלי
     </a>
     <a href="{{ url_for('predict_all', league_key=league_key, week=selected_week) }}" class="nav-link">
         📊 כל המאצ'אפים
+    </a>
+    <a href="{{ url_for('standings', league_key=league_key) }}" class="nav-link">
+        🏆 טבלת הליגה
     </a>
 </div>
 
@@ -848,8 +950,8 @@
             {% set my_val = prediction.my_team.total_projected.get(cat, 0) %}
             {% set opp_val = prediction.opponent.total_projected.get(cat, 0) %}
             {% set winner = prediction.category_winners.get(cat, '') %}
-            {% set init_my = prediction.initial_my_projected.get(cat, 0) if prediction.initial_my_projected else 0 %}
-            {% set init_opp = prediction.initial_opponent_projected.get(cat, 0) if prediction.initial_opponent_projected else 0 %}
+            {% set actual_my = prediction.actual_my_stats.get(cat, 0) if prediction.actual_my_stats else 0 %}
+            {% set actual_opp = prediction.actual_opponent_stats.get(cat, 0) if prediction.actual_opponent_stats else 0 %}
             <tr>
                 <td>{{ cat }}</td>
                 <td class="cat-value {% if winner == 'my_team' %}winner{% elif winner == 'opponent' %}loser{% endif %}">
@@ -858,8 +960,8 @@
                     {% else %}
                         {{ "%.1f"|format(my_val) }}
                     {% endif %}
-                    {% if prediction.initial_my_projected %}
-                    <div class="initial-inline">(חיזוי: {{ "%.1f"|format(init_my) }}{% if cat in ['FG%', 'FT%'] %}%{% endif %})</div>
+                    {% if prediction.actual_my_stats %}
+                    <div class="current-inline">(נוכחי: {% if cat in ['FG%', 'FT%'] %}{{ "%.1f"|format(actual_my) }}%{% else %}{{ "%.0f"|format(actual_my) }}{% endif %})</div>
                     {% endif %}
                 </td>
                 <td class="cat-value {% if winner == 'opponent' %}winner{% elif winner == 'my_team' %}loser{% endif %}">
@@ -868,8 +970,8 @@
                     {% else %}
                         {{ "%.1f"|format(opp_val) }}
                     {% endif %}
-                    {% if prediction.initial_opponent_projected %}
-                    <div class="initial-inline">(חיזוי: {{ "%.1f"|format(init_opp) }}{% if cat in ['FG%', 'FT%'] %}%{% endif %})</div>
+                    {% if prediction.actual_opponent_stats %}
+                    <div class="current-inline">(נוכחי: {% if cat in ['FG%', 'FT%'] %}{{ "%.1f"|format(actual_opp) }}%{% else %}{{ "%.0f"|format(actual_opp) }}{% endif %})</div>
                     {% endif %}
                 </td>
                 <td class="cat-winner">
@@ -910,18 +1012,22 @@
                     <div style="flex: 1;">
                         <div class="player-name">{{ player.name }}</div>
                         <div class="player-position">{{ player.position }} | {{ player.team }}</div>
-                        {% if player.weekly_schedule and not player.is_on_il %}
+                        {% if player.is_on_il %}
+                        <div class="no-game-today" style="color: var(--accent-red);">🏥 לא נספר (IL)</div>
+                        {% elif player.weekly_schedule %}
                         <div class="weekly-schedule">
                             {% for day in player.weekly_schedule %}
                             <div class="day-slot {% if day.has_game %}has-game{% else %}no-game{% endif %} {% if day.is_today %}is-today{% endif %} {% if day.is_past %}is-past{% endif %}" title="{{ day.day_name }}">
-                                <span class="day-name">{{ day.day_short }}</span>
+                                <span class="day-date">{{ day.date[8:10] }}/{{ day.date[5:7] }}</span>
                                 {% if day.has_game %}
                                     {% if day.time_israel %}
                                     <span class="game-time">{{ day.time_israel }}</span>
                                     {% endif %}
-                                    {% if day.opponent and day.opponent != '?' %}
+                                    {% if day.opponent and day.opponent != '?' and day.opponent != None %}
                                     <span class="opponent">{{ day.opponent }}</span>
+                                    {% if day.is_home is not none %}
                                     <span class="home-away">{% if day.is_home %}בית{% else %}חוץ{% endif %}</span>
+                                    {% endif %}
                                     {% else %}
                                     <span class="opponent">🏀</span>
                                     {% endif %}
@@ -931,13 +1037,9 @@
                             </div>
                             {% endfor %}
                         </div>
-                        <div class="games-summary">
-                            סה"כ <strong>{{ player.games_this_week }}</strong> משחקים השבוע
-                        </div>
-                        {% elif player.is_on_il %}
-                        <div class="no-game-today" style="color: var(--accent-red);">🏥 לא נספר (IL)</div>
+                        <div class="games-summary">סה"כ <strong>{{ player.games_this_week }}</strong> משחקים</div>
                         {% else %}
-                        <div class="games-summary">{{ player.games_this_week }} משחקים השבוע</div>
+                        <span class="player-games">🏀 {{ player.games_this_week }} משחקים</span>
                         {% endif %}
                     </div>
                 </div>
@@ -962,18 +1064,22 @@
                     <div style="flex: 1;">
                         <div class="player-name">{{ player.name }}</div>
                         <div class="player-position">{{ player.position }} | {{ player.team }}</div>
-                        {% if player.weekly_schedule and not player.is_on_il %}
+                        {% if player.is_on_il %}
+                        <div class="no-game-today" style="color: var(--accent-red);">🏥 לא נספר (IL)</div>
+                        {% elif player.weekly_schedule %}
                         <div class="weekly-schedule">
                             {% for day in player.weekly_schedule %}
                             <div class="day-slot {% if day.has_game %}has-game{% else %}no-game{% endif %} {% if day.is_today %}is-today{% endif %} {% if day.is_past %}is-past{% endif %}" title="{{ day.day_name }}">
-                                <span class="day-name">{{ day.day_short }}</span>
+                                <span class="day-date">{{ day.date[8:10] }}/{{ day.date[5:7] }}</span>
                                 {% if day.has_game %}
                                     {% if day.time_israel %}
                                     <span class="game-time">{{ day.time_israel }}</span>
                                     {% endif %}
-                                    {% if day.opponent and day.opponent != '?' %}
+                                    {% if day.opponent and day.opponent != '?' and day.opponent != None %}
                                     <span class="opponent">{{ day.opponent }}</span>
+                                    {% if day.is_home is not none %}
                                     <span class="home-away">{% if day.is_home %}בית{% else %}חוץ{% endif %}</span>
+                                    {% endif %}
                                     {% else %}
                                     <span class="opponent">🏀</span>
                                     {% endif %}
@@ -983,13 +1089,9 @@
                             </div>
                             {% endfor %}
                         </div>
-                        <div class="games-summary">
-                            סה"כ <strong>{{ player.games_this_week }}</strong> משחקים השבוע
-                        </div>
-                        {% elif player.is_on_il %}
-                        <div class="no-game-today" style="color: var(--accent-red);">🏥 לא נספר (IL)</div>
+                        <div class="games-summary">סה"כ <strong>{{ player.games_this_week }}</strong> משחקים</div>
                         {% else %}
-                        <div class="games-summary">{{ player.games_this_week }} משחקים השבוע</div>
+                        <span class="player-games">🏀 {{ player.games_this_week }} משחקים</span>
                         {% endif %}
                     </div>
                 </div>
@@ -1057,6 +1159,16 @@
 
 {% block scripts %}
 <script>
+function toggleSideMenu() {
+    const menu = document.getElementById('sideMenu');
+    const overlay = document.getElementById('menuOverlay');
+    const toggle = document.getElementById('menuToggle');
+    
+    menu.classList.toggle('open');
+    overlay.classList.toggle('open');
+    toggle.classList.toggle('open');
+}
+
 function toggleWeekDropdown() {
     const dropdown = document.getElementById('weekDropdown');
     dropdown.classList.toggle('show');

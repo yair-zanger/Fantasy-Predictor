@@ -1,0 +1,677 @@
+{% extends 'base.html' %}
+
+{% block title %}טבלת הליגה - {{ league_name }}{% endblock %}
+
+{% block extra_styles %}
+<style>
+    .page-header {
+        text-align: center;
+        margin-bottom: 2rem;
+        opacity: 0;
+        animation: fadeIn 0.5s ease-out forwards;
+    }
+    
+    .league-title {
+        font-size: 1.5rem;
+        color: var(--text-secondary);
+        margin-bottom: 0.5rem;
+    }
+    
+    .page-title {
+        font-size: 2rem;
+        color: var(--text-primary);
+        margin-bottom: 1rem;
+    }
+    
+    .week-badge {
+        display: inline-block;
+        background: var(--accent-orange);
+        color: white;
+        padding: 0.5rem 1.5rem;
+        border-radius: 30px;
+        font-weight: 700;
+    }
+    
+    /* Side Menu */
+    .menu-toggle {
+        position: fixed;
+        top: 1rem;
+        right: 1rem;
+        z-index: 1001;
+        width: 48px;
+        height: 48px;
+        background: var(--bg-card);
+        border: 2px solid var(--accent-orange);
+        border-radius: 12px;
+        cursor: pointer;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        gap: 5px;
+        transition: all 0.3s;
+    }
+    
+    .menu-toggle:hover {
+        background: var(--accent-orange);
+    }
+    
+    .menu-toggle span {
+        width: 24px;
+        height: 3px;
+        background: var(--text-primary);
+        border-radius: 2px;
+        transition: all 0.3s;
+    }
+    
+    .menu-toggle:hover span {
+        background: white;
+    }
+    
+    .menu-toggle.open span:nth-child(1) {
+        transform: rotate(45deg) translate(5px, 5px);
+    }
+    
+    .menu-toggle.open span:nth-child(2) {
+        opacity: 0;
+    }
+    
+    .menu-toggle.open span:nth-child(3) {
+        transform: rotate(-45deg) translate(6px, -6px);
+    }
+    
+    .side-menu {
+        position: fixed;
+        top: 0;
+        right: -280px;
+        width: 280px;
+        height: 100vh;
+        background: var(--bg-card);
+        border-left: 2px solid var(--border-color);
+        z-index: 1000;
+        transition: right 0.3s ease;
+        padding: 5rem 1.5rem 2rem;
+        overflow-y: auto;
+    }
+    
+    .side-menu.open {
+        right: 0;
+    }
+    
+    .side-menu-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 999;
+        opacity: 0;
+        visibility: hidden;
+        transition: all 0.3s;
+    }
+    
+    .side-menu-overlay.open {
+        opacity: 1;
+        visibility: visible;
+    }
+    
+    .side-menu-title {
+        font-size: 1.2rem;
+        font-weight: 700;
+        color: var(--accent-orange);
+        margin-bottom: 1.5rem;
+        padding-bottom: 0.75rem;
+        border-bottom: 1px solid var(--border-color);
+    }
+    
+    .nav-link {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 1rem;
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        color: var(--text-primary);
+        text-decoration: none;
+        margin-bottom: 0.75rem;
+        transition: all 0.3s;
+    }
+    
+    .nav-link:hover {
+        background: var(--accent-blue);
+        border-color: var(--accent-blue);
+        color: white;
+    }
+    
+    .nav-link.active {
+        background: var(--accent-orange);
+        border-color: var(--accent-orange);
+        color: white;
+    }
+    
+    /* Week Selector */
+    .week-selector {
+        position: relative;
+        z-index: 100;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+        opacity: 0;
+        animation: fadeIn 0.5s ease-out 0.1s forwards;
+    }
+    
+    .week-nav-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 44px;
+        height: 44px;
+        background: var(--bg-card);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        color: var(--text-primary);
+        font-size: 1.25rem;
+        cursor: pointer;
+        transition: all 0.3s;
+        text-decoration: none;
+    }
+    
+    .week-nav-btn:hover:not(.disabled) {
+        background: var(--accent-orange);
+        border-color: var(--accent-orange);
+        transform: scale(1.05);
+    }
+    
+    .week-nav-btn.disabled {
+        opacity: 0.3;
+        cursor: not-allowed;
+        pointer-events: none;
+    }
+    
+    .week-dropdown-container {
+        position: relative;
+        z-index: 1000;
+    }
+
+    .week-dropdown-btn {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        background: var(--bg-card);
+        border: 2px solid var(--accent-orange);
+        border-radius: 12px;
+        padding: 0.75rem 1.25rem;
+        font-size: 1rem;
+        font-weight: 600;
+        color: var(--text-primary);
+        cursor: pointer;
+        transition: all 0.3s;
+        min-width: 180px;
+        justify-content: center;
+    }
+
+    .week-dropdown-btn:hover {
+        background: rgba(255, 107, 53, 0.1);
+    }
+
+    .week-dropdown-btn .week-label {
+        color: var(--text-secondary);
+        font-weight: 400;
+    }
+
+    .week-dropdown-btn .current-indicator {
+        background: var(--accent-green);
+        color: white;
+        font-size: 0.7rem;
+        padding: 0.15rem 0.5rem;
+        border-radius: 10px;
+        margin-right: 0.5rem;
+    }
+
+    .week-dropdown-btn .projection-indicator {
+        background: var(--accent-blue);
+        color: white;
+        font-size: 0.7rem;
+        padding: 0.15rem 0.5rem;
+        border-radius: 10px;
+        margin-right: 0.5rem;
+    }
+
+    .week-dropdown {
+        position: absolute;
+        top: calc(100% + 8px);
+        left: 50%;
+        transform: translateX(-50%);
+        background: var(--bg-card);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        min-width: 200px;
+        max-height: 350px;
+        overflow-y: auto;
+        box-shadow: 0 15px 50px rgba(0, 0, 0, 0.8);
+        display: none;
+        z-index: 9999;
+    }
+
+    .week-dropdown.show {
+        display: block;
+        animation: fadeIn 0.2s ease-out;
+    }
+
+    .week-option {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0.75rem 1rem;
+        color: var(--text-primary);
+        text-decoration: none;
+        transition: background 0.2s;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .week-option:last-child {
+        border-bottom: none;
+    }
+
+    .week-option:hover {
+        background: rgba(255, 107, 53, 0.1);
+    }
+
+    .week-option.active {
+        background: var(--accent-orange);
+        color: white;
+    }
+
+    .week-option.current-week {
+        border-right: 3px solid var(--accent-green);
+    }
+
+    .week-option.past-week {
+        opacity: 0.7;
+    }
+
+    .week-option .badge {
+        font-size: 0.7rem;
+        padding: 0.15rem 0.5rem;
+        border-radius: 10px;
+        background: var(--accent-green);
+        color: white;
+    }
+
+    .week-option .badge.past-badge {
+        background: var(--text-secondary);
+    }
+
+    .week-option .badge.projection-badge {
+        background: var(--accent-blue);
+    }
+
+    .projection-badge {
+        display: inline-block;
+        background: var(--accent-blue);
+        color: white;
+        font-size: 0.7rem;
+        padding: 0.2rem 0.5rem;
+        border-radius: 10px;
+        margin-right: 0.5rem;
+    }
+    
+    .projection-notice {
+        background: rgba(59, 130, 246, 0.1);
+        border: 1px solid var(--accent-blue);
+        border-radius: 12px;
+        padding: 1rem;
+        margin-bottom: 1.5rem;
+        text-align: center;
+        color: var(--accent-blue);
+        font-size: 0.9rem;
+    }
+    
+    /* Standings Table */
+    .standings-card {
+        position: relative;
+        z-index: 1;
+        background: var(--bg-card);
+        border-radius: 16px;
+        border: 1px solid var(--border-color);
+        overflow: hidden;
+        opacity: 0;
+        animation: fadeIn 0.5s ease-out 0.2s forwards;
+    }
+    
+    .standings-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    
+    .standings-table th {
+        background: var(--bg-secondary);
+        padding: 1rem;
+        text-align: center;
+        font-weight: 600;
+        color: var(--text-secondary);
+        font-size: 0.875rem;
+        border-bottom: 1px solid var(--border-color);
+    }
+    
+    .standings-table th:first-child {
+        text-align: right;
+        padding-right: 1.5rem;
+    }
+    
+    .standings-table td {
+        padding: 1rem;
+        text-align: center;
+        border-bottom: 1px solid var(--border-color);
+    }
+    
+    .standings-table tr:last-child td {
+        border-bottom: none;
+    }
+    
+    .standings-table tr:hover {
+        background: rgba(255, 107, 53, 0.05);
+    }
+    
+    .standings-table tr.my-team {
+        background: rgba(255, 107, 53, 0.1);
+        border-right: 4px solid var(--accent-orange);
+    }
+    
+    .standings-table tr.my-team:hover {
+        background: rgba(255, 107, 53, 0.15);
+    }
+    
+    .rank-cell {
+        font-weight: 700;
+        font-size: 1.25rem;
+    }
+    
+    .rank-1 { color: #ffd700; }
+    .rank-2 { color: #c0c0c0; }
+    .rank-3 { color: #cd7f32; }
+    
+    .team-cell {
+        text-align: right !important;
+        padding-right: 1.5rem !important;
+    }
+    
+    .team-name {
+        font-weight: 600;
+        font-size: 1rem;
+        color: var(--text-primary);
+    }
+    
+    .team-manager {
+        font-size: 0.8rem;
+        color: var(--text-secondary);
+    }
+    
+    .record-cell {
+        font-weight: 600;
+        font-size: 1.1rem;
+    }
+    
+    .win-pct {
+        color: var(--accent-green);
+        font-weight: 600;
+    }
+    
+    .win-pct.low {
+        color: var(--accent-red);
+    }
+    
+    
+    /* Playoff Line */
+    .playoff-line td {
+        border-bottom: 2px dashed var(--accent-red) !important;
+    }
+    
+    /* Mobile responsive */
+    @media (max-width: 768px) {
+        .standings-table th,
+        .standings-table td {
+            padding: 0.75rem 0.5rem;
+            font-size: 0.85rem;
+        }
+        
+        .team-cell {
+            padding-right: 0.75rem !important;
+        }
+    }
+
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    
+    /* Loading Overlay */
+    .loading-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(18, 18, 18, 0.9);
+        display: none;
+        justify-content: center;
+        align-items: center;
+        z-index: 9999;
+        flex-direction: column;
+        gap: 1.5rem;
+    }
+    
+    .loading-overlay.show {
+        display: flex;
+    }
+    
+    .loading-spinner {
+        width: 60px;
+        height: 60px;
+        border: 4px solid var(--border-color);
+        border-top-color: var(--accent-orange);
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }
+    
+    .loading-text {
+        color: var(--text-primary);
+        font-size: 1.1rem;
+        font-weight: 500;
+    }
+    
+    @keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Loading Overlay -->
+<div class="loading-overlay" id="loadingOverlay">
+    <div class="loading-spinner"></div>
+    <div class="loading-text">טוען נתונים...</div>
+</div>
+
+<div class="container">
+    <!-- Page Header -->
+    <div class="page-header">
+        <div class="league-title">{{ league_name }}</div>
+        <h1 class="page-title">🏆 טבלת הליגה</h1>
+        {% if is_projection %}
+        <span class="week-badge" style="background: var(--accent-blue);">
+            <span class="projection-badge">חיזוי</span>
+            אחרי שבוע {{ selected_week }}
+        </span>
+        {% else %}
+        <span class="week-badge">אחרי שבוע {{ selected_week }}</span>
+        {% endif %}
+    </div>
+    
+    <!-- Week Selector -->
+    <div class="week-selector">
+        {% if selected_week > start_week %}
+        <a href="{{ url_for('standings', league_key=league_key, week=selected_week-1) }}" class="week-nav-btn" title="שבוע קודם">
+            →
+        </a>
+        {% else %}
+        <span class="week-nav-btn disabled">→</span>
+        {% endif %}
+        
+        <div class="week-dropdown-container">
+            <button class="week-dropdown-btn" onclick="toggleWeekDropdown()">
+                <span class="week-label">שבוע</span>
+                <span>{{ selected_week }}</span>
+                {% if selected_week == current_week %}
+                <span class="current-indicator">נוכחי</span>
+                {% elif selected_week > current_week %}
+                <span class="projection-indicator">חיזוי</span>
+                {% endif %}
+                <span style="font-size: 0.75rem;">▼</span>
+            </button>
+
+            <div class="week-dropdown" id="weekDropdown">
+                {% for week_num in range(start_week, end_week + 1) %}
+                <a href="{{ url_for('standings', league_key=league_key, week=week_num) }}"
+                   class="week-option {% if week_num == selected_week %}active{% endif %} {% if week_num == current_week %}current-week{% endif %} {% if week_num < current_week %}past-week{% endif %}">
+                    <span>שבוע {{ week_num }}</span>
+                    {% if week_num < current_week %}
+                    <span class="badge past-badge">הסתיים</span>
+                    {% elif week_num == current_week %}
+                    <span class="badge">נוכחי</span>
+                    {% elif week_num > current_week %}
+                    <span class="badge projection-badge">חיזוי</span>
+                    {% endif %}
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+        
+        {% if selected_week < end_week %}
+        <a href="{{ url_for('standings', league_key=league_key, week=selected_week+1) }}" class="week-nav-btn" title="שבוע הבא">
+            ←
+        </a>
+        {% else %}
+        <span class="week-nav-btn disabled">←</span>
+        {% endif %}
+    </div>
+    
+    {% if is_projection %}
+    <div class="projection-notice">
+        {% if selected_week == current_week %}
+        🔮 חיזוי: כך הטבלה תיראה אחרי סיום השבוע הנוכחי (שבוע {{ selected_week }})
+        {% else %}
+        🔮 חיזוי: כך הטבלה תיראה אחרי סיום שבוע {{ selected_week }} (כולל חיזוי משבוע {{ current_week }} עד {{ selected_week }})
+        {% endif %}
+    </div>
+    {% endif %}
+    
+<!-- Hamburger Menu Button -->
+<button class="menu-toggle" id="menuToggle" onclick="toggleSideMenu()">
+    <span></span>
+    <span></span>
+    <span></span>
+</button>
+
+<!-- Side Menu Overlay -->
+<div class="side-menu-overlay" id="menuOverlay" onclick="toggleSideMenu()"></div>
+
+<!-- Side Menu -->
+<div class="side-menu" id="sideMenu">
+    <div class="side-menu-title">📋 ניווט</div>
+    <a href="{{ url_for('dashboard') }}" class="nav-link">
+        🏀 כל הליגות
+    </a>
+    <a href="{{ url_for('predict', league_key=league_key) }}" class="nav-link">
+        🎯 המאצ'אפ שלי
+    </a>
+    <a href="{{ url_for('predict_all', league_key=league_key) }}" class="nav-link">
+        📊 כל המאצ'אפים
+    </a>
+    <a href="{{ url_for('standings', league_key=league_key, week=selected_week) }}" class="nav-link active">
+        🏆 טבלת הליגה
+    </a>
+</div>
+    
+    <!-- Standings Table -->
+    <div class="standings-card">
+        <table class="standings-table">
+            <thead>
+                <tr>
+                    <th style="width: 60px;">#</th>
+                    <th class="team-cell">קבוצה</th>
+                    <th>נ-ת-ה</th>
+                    <th>אחוז</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for team in standings %}
+                {% set cat_record = category_records.get(team.team_key, {'cat_wins': 0, 'cat_losses': 0, 'cat_ties': 0}) %}
+                {% set cat_wins = cat_record.cat_wins %}
+                {% set cat_losses = cat_record.cat_losses %}
+                {% set cat_ties = cat_record.cat_ties %}
+                {% set total_cats = cat_wins + cat_losses + cat_ties %}
+                {% set cat_pct = (cat_wins / total_cats * 100) if total_cats > 0 else 0 %}
+                <tr class="{% if team.team_key == my_team_key %}my-team{% endif %} {% if loop.index == 8 %}playoff-line{% endif %}">
+                    <td class="rank-cell rank-{{ team.rank }}">{{ team.rank }}</td>
+                    <td class="team-cell">
+                        <div class="team-name">{{ team.name }}</div>
+                        <div class="team-manager">{{ team.manager }}</div>
+                    </td>
+                    <td class="record-cell">{{ cat_wins }}-{{ cat_ties }}-{{ cat_losses }}</td>
+                    <td class="win-pct {% if cat_pct < 50 %}low{% endif %}">{{ "%.1f"|format(cat_pct) }}%</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function toggleSideMenu() {
+    const menu = document.getElementById('sideMenu');
+    const overlay = document.getElementById('menuOverlay');
+    const toggle = document.getElementById('menuToggle');
+    
+    menu.classList.toggle('open');
+    overlay.classList.toggle('open');
+    toggle.classList.toggle('open');
+}
+
+function toggleWeekDropdown() {
+    const dropdown = document.getElementById('weekDropdown');
+    dropdown.classList.toggle('show');
+}
+
+// Close dropdown when clicking outside
+document.addEventListener('click', function(event) {
+    const dropdown = document.getElementById('weekDropdown');
+    const button = event.target.closest('.week-dropdown-btn');
+
+    if (!button && dropdown && dropdown.classList.contains('show')) {
+        dropdown.classList.remove('show');
+    }
+});
+
+// Show loading overlay when navigating to different week
+function showLoading() {
+    document.getElementById('loadingOverlay').classList.add('show');
+}
+
+// Add click handler to all week navigation links
+document.querySelectorAll('.week-nav-btn:not(.disabled), .week-option').forEach(link => {
+    link.addEventListener('click', function(e) {
+        // Only show loading if navigating to different page
+        if (this.href && this.href !== window.location.href) {
+            showLoading();
+        }
+    });
+});
+</script>
+{% endblock %}

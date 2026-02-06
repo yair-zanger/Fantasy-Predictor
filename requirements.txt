@@ -9,3 +9,5 @@ python-dateutil==2.8.2
 yahoo-oauth==2.0
 rauth==0.7.3
 python-dotenv==1.0.0
+beautifulsoup4==4.12.3
+lxml==5.1.0

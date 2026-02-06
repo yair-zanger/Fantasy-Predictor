@@ -2,16 +2,40 @@
 Fantasy Basketball Matchup Predictor
 Predicts weekly matchup results based on player stats, games played, and injuries
 """
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Tuple, Optional, Any
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import statistics
 
 from yahoo_api import api, STAT_ID_MAP, STAT_NAME_TO_ID
+
+# ==================== PREDICTION CACHE ====================
+# Cache for predictions (in-memory)
+_prediction_cache: Dict[str, Dict] = {}
+PREDICTION_CACHE_TTL = 600  # 10 minutes
+
+def _get_prediction_cached(key: str) -> Optional[Any]:
+    """Get cached prediction if not expired."""
+    if key in _prediction_cache:
+        cached = _prediction_cache[key]
+        if datetime.now() < cached['expires']:
+            return cached['data']
+        else:
+            del _prediction_cache[key]
+    return None
+
+def _set_prediction_cached(key: str, data: Any):
+    """Store prediction in cache with TTL."""
+    _prediction_cache[key] = {
+        'data': data,
+        'expires': datetime.now() + timedelta(seconds=PREDICTION_CACHE_TTL)
+    }
 from nba_schedule import (
     schedule, get_team_games_this_week, get_teams_playing_on_date,
     get_team_games_remaining_this_week, get_week_dates_range,
-    get_todays_games, get_team_game_today, get_team_weekly_schedule
+    get_todays_games, get_team_game_today, get_team_weekly_schedule,
+    get_pacific_time, get_pacific_date
 )
 from config import CATEGORIES, NEGATIVE_CATEGORIES
 from basketball_reference import (
@@ -45,14 +69,14 @@ INACTIVE_POSITIONS = ['IL', 'IL+']
 # Maximum daily starters (if more players available, use only starting positions)
 MAX_DAILY_STARTERS = 10
 
-# Injury status that SHOULD be counted (100%)
+# Injury status adjustments (probability multiplier)
 INJURY_COUNT = {
-    'Probable': 1.0,
-    'P': 1.0,
-    'Questionable': 1.0,
-    'Q': 1.0,
-    'GTD': 1.0,         # Game-Time Decision - count
-    'DTD': 1.0,         # Day-to-Day - count
+    'Probable': 0.9,    # 90% - likely to play but not certain
+    'P': 0.9,
+    'Questionable': 0.5,  # 50% - coin flip (UPDATED from 1.0)
+    'Q': 0.5,
+    'GTD': 0.5,         # Game-Time Decision - 50%
+    'DTD': 0.7,         # Day-to-Day - 70%
     '': 1.0,            # Healthy
     'Healthy': 1.0,
 }
@@ -113,23 +137,30 @@ class MatchupPrediction:
     # Initial projections from start of week (for comparison)
     initial_my_projected: Optional[Dict[str, float]] = None
     initial_opponent_projected: Optional[Dict[str, float]] = None
+    # Current actual stats (accumulated so far this week)
+    actual_my_stats: Optional[Dict[str, float]] = None
+    actual_opponent_stats: Optional[Dict[str, float]] = None
 
 
 def get_injury_factor(status: str) -> float:
     """Get injury factor for a player status.
-    Returns 1.0 if player should be counted, 0.0 if should be skipped.
+    Returns probability multiplier (0.0 to 1.0):
+    - 1.0 = healthy (100%)
+    - 0.9 = probable (90%)
+    - 0.5 = questionable/GTD (50%)
+    - 0.0 = out/doubtful (0%)
     """
     status = status.strip() if status else ''
     
-    # Check if should be skipped
+    # Check if should be skipped (0%)
     if status in INJURY_SKIP:
         return 0.0
     
-    # Check if should be counted
+    # Check if has probability multiplier
     if status in INJURY_COUNT:
-        return 1.0
+        return INJURY_COUNT[status]
     
-    # Default: count unknown statuses
+    # Default: count unknown statuses as healthy
     return 1.0
 
 
@@ -234,9 +265,17 @@ class FantasyPredictor:
         
         print(f"[DEBUG] Got averages for {len(player_averages)} players")
         
+        # Calculate week_start for the REQUESTED week
+        if current_week:
+            current_week_start, _ = get_week_dates_range()
+            week_offset = week_num - current_week
+            week_start_for_projection = current_week_start + timedelta(weeks=week_offset)
+        else:
+            week_start_for_projection, _ = get_week_dates_range()
+        
         # Calculate initial projections (full week, as if from start of week)
-        initial_my_projected = self._calculate_initial_projection(my_roster, player_averages)
-        initial_opponent_projected = self._calculate_initial_projection(opponent_roster, player_averages)
+        initial_my_projected = self._calculate_initial_projection(my_roster, player_averages, week_start_for_projection)
+        initial_opponent_projected = self._calculate_initial_projection(opponent_roster, player_averages, week_start_for_projection)
         
         # For past weeks, return actual results with initial projections for comparison
         if is_past_week:
@@ -252,13 +291,19 @@ class FantasyPredictor:
         print(f"[DEBUG] My team actual stats from Yahoo: {my_actual_stats}")
         print(f"[DEBUG] Opponent actual stats from Yahoo: {opponent_actual_stats}")
         
+        # Convert actual stats to category names for display
+        my_actual_converted = self._convert_stats_to_categories(my_actual_stats)
+        opponent_actual_converted = self._convert_stats_to_categories(opponent_actual_stats)
+        
         # Project each team: actual stats (past) + projected stats (remaining)
         my_projection = self._project_team_with_actuals(
             my_team_info['team_key'],
             my_team_info['name'],
             my_roster,
             player_averages,
-            my_actual_stats  # Pass actual stats for past days
+            my_actual_stats,  # Pass actual stats for past days
+            week_num,  # Pass week number for correct date calculation
+            current_week  # Pass current week for offset calculation
         )
         
         opponent_projection = self._project_team_with_actuals(
@@ -266,7 +311,9 @@ class FantasyPredictor:
             matchup['opponent']['name'],
             opponent_roster,
             player_averages,
-            opponent_actual_stats  # Pass actual stats for past days
+            opponent_actual_stats,  # Pass actual stats for past days
+            week_num,  # Pass week number for correct date calculation
+            current_week  # Pass current week for offset calculation
         )
         
         # Compare projections
@@ -282,14 +329,23 @@ class FantasyPredictor:
             predicted_score=predicted_score,
             confidence=confidence,
             initial_my_projected=initial_my_projected,
-            initial_opponent_projected=initial_opponent_projected
+            initial_opponent_projected=initial_opponent_projected,
+            actual_my_stats=my_actual_converted,
+            actual_opponent_stats=opponent_actual_converted
         )
     
-    def predict_all_matchups(self, league_key: str, week: int = None) -> List[Dict]:
+    def predict_all_matchups(self, league_key: str, week: int = None, current_week: int = None) -> List[Dict]:
         """Generate predictions for all matchups in the league.
         
         Returns a list of matchup predictions with team names, scores, and winners.
         """
+        # Check cache first
+        cache_key = f"all_matchups:{league_key}:{week}"
+        cached = _get_prediction_cached(cache_key)
+        if cached is not None:
+            print(f"[DEBUG] Using cached predictions for {league_key} week {week}")
+            return cached
+        
         # Get all matchups from scoreboard
         matchups = self.api.get_league_scoreboard(league_key, week)
         
@@ -298,17 +354,34 @@ class FantasyPredictor:
         
         week_num = int(matchups[0].get('week', 0)) if matchups else 0
         
+        # Use week_num as current_week if not provided
+        if current_week is None:
+            current_week = week_num
+        
         # Fetch all rosters and player averages at once for efficiency
         all_team_keys = []
         for matchup in matchups:
             for team in matchup.get('teams', []):
                 all_team_keys.append(team['team_key'])
         
-        # Get rosters for all teams
-        print(f"[DEBUG] Fetching rosters for {len(all_team_keys)} teams...")
+        # Get rosters for all teams IN PARALLEL (much faster!)
+        print(f"[DEBUG] Fetching rosters for {len(all_team_keys)} teams in parallel...")
         all_rosters = {}
-        for team_key in all_team_keys:
-            all_rosters[team_key] = self.api.get_team_roster(team_key, week)
+        
+        def fetch_roster(team_key):
+            return team_key, self.api.get_team_roster(team_key, week)
+        
+        # Use ThreadPoolExecutor for parallel fetching
+        with ThreadPoolExecutor(max_workers=6) as executor:
+            futures = {executor.submit(fetch_roster, tk): tk for tk in all_team_keys}
+            for future in as_completed(futures):
+                try:
+                    team_key, roster = future.result()
+                    all_rosters[team_key] = roster
+                except Exception as e:
+                    print(f"[DEBUG] Error fetching roster: {e}")
+        
+        print(f"[DEBUG] Fetched {len(all_rosters)} rosters")
         
         # Get all player keys
         all_player_keys = []
@@ -351,7 +424,9 @@ class FantasyPredictor:
                 team1['name'],
                 all_rosters.get(team1['team_key'], []),
                 player_averages,
-                team1.get('stats', {})
+                team1.get('stats', {}),
+                week_num,  # Pass week number for correct date calculation
+                current_week  # Pass current week for offset calculation
             )
             
             team2_projection = self._project_team_with_actuals(
@@ -359,7 +434,9 @@ class FantasyPredictor:
                 team2['name'],
                 all_rosters.get(team2['team_key'], []),
                 player_averages,
-                team2.get('stats', {})
+                team2.get('stats', {}),
+                week_num,  # Pass week number for correct date calculation
+                current_week  # Pass current week for offset calculation
             )
             
             # Compare projections
@@ -407,6 +484,8 @@ class FantasyPredictor:
                 'winner_key': winner_key
             })
         
+        # Cache the result
+        _set_prediction_cached(cache_key, predictions)
         return predictions
     
     def _get_past_week_results(self, matchup: Dict, my_team_info: Dict, week_num: int,
@@ -475,10 +554,12 @@ class FantasyPredictor:
             confidence=confidence,
             is_past_week=True,  # Mark as past week
             initial_my_projected=initial_my_projected,
-            initial_opponent_projected=initial_opponent_projected
+            initial_opponent_projected=initial_opponent_projected,
+            actual_my_stats=my_totals,  # For past weeks, actual = final
+            actual_opponent_stats=opponent_totals
         )
     
-    def _calculate_initial_projection(self, roster: List[Dict], player_averages: Dict) -> Dict[str, float]:
+    def _calculate_initial_projection(self, roster: List[Dict], player_averages: Dict, week_start: datetime = None) -> Dict[str, float]:
         """Calculate pure initial projection for the entire week (as if from start of week).
         
         This gives us what the projection would be if no games were played yet,
@@ -505,9 +586,10 @@ class FantasyPredictor:
             if injury_factor == 0:
                 continue
             
-            # Get games this week for player's team
+            # Get games this week for player's team (from weekly schedule) for the REQUESTED week
             team_abbr = player.get('team', '')
-            games = get_team_games_this_week(team_abbr) if team_abbr else 3
+            weekly_sched = get_team_weekly_schedule(team_abbr, week_start) if team_abbr else []
+            games = sum(1 for day in weekly_sched if day.get('has_game')) if weekly_sched else 3
             
             # Get player averages
             avg_stats = player_averages.get(player['player_key'], player.get('stats', {}))
@@ -576,7 +658,9 @@ class FantasyPredictor:
     
     def _project_team_with_actuals(self, team_key: str, team_name: str, 
                                     roster: List[Dict], player_averages: Dict,
-                                    actual_stats: Dict = None) -> TeamProjection:
+                                    actual_stats: Dict = None,
+                                    week_num: int = None,
+                                    current_week: int = None) -> TeamProjection:
         """Project team stats combining actual results with projections.
         
         Algorithm:
@@ -592,32 +676,64 @@ class FantasyPredictor:
         - If > 10 eligible players, exclude bench (Yahoo "Start Active Players" logic)
         """
         
+        # Yahoo Fantasy uses Pacific Time (PST/PDT) for determining game dates
+        # Use Pacific Time to match Yahoo's logic for past vs future games
         today = datetime.now()
-        today_date = today.replace(hour=0, minute=0, second=0, microsecond=0)
-        week_start, week_end = get_week_dates_range()
+        today_pst = get_pacific_time()
+        today_date_pst = get_pacific_date()
+        
+        is_dst = 3 <= today.month <= 10  # Approximate DST period
+        
+        print(f"[DEBUG] Server time (Israel): {today}")
+        print(f"[DEBUG] Pacific time: {today_pst} ({'PDT' if is_dst else 'PST'})")
+        print(f"[DEBUG] Current Pacific date: {today_date_pst.date()}")
+        
+        # Calculate week_start and week_end for the REQUESTED week (not just current week)
+        if week_num and current_week:
+            # Get current week dates first
+            current_week_start, current_week_end = get_week_dates_range()
+            
+            # Calculate offset in weeks
+            week_offset = week_num - current_week
+            
+            # Calculate the requested week's dates
+            week_start = current_week_start + timedelta(weeks=week_offset)
+            week_end = week_start + timedelta(days=6, hours=23, minutes=59, seconds=59)
+            
+            print(f"[DEBUG] Requested week {week_num}, current week {current_week}, offset: {week_offset} weeks")
+            print(f"[DEBUG] Week dates: {week_start.strftime('%Y-%m-%d')} to {week_end.strftime('%Y-%m-%d')}")
+        else:
+            # Fallback: use current week
+            week_start, week_end = get_week_dates_range()
+            print(f"[DEBUG] Using current week dates (fallback)")
         
         # Get today's games for all teams (for display)
         todays_games = get_todays_games()
         
-        # Split the week into past days and remaining days
-        past_days = []  # Days that have already passed (week_start to yesterday)
-        remaining_days = []  # Days remaining (today to week_end)
+        # Split the week into past days and remaining days (using Pacific Time)
+        past_days = []  # Days that have already passed in Pacific Time
+        remaining_days = []  # Days remaining in Pacific Time (today onwards)
         
         current_day = week_start
         while current_day <= week_end:
-            if current_day < today_date:
+            # Compare dates using Pacific Time
+            if current_day < today_date_pst:
                 past_days.append(current_day)
             else:
                 remaining_days.append(current_day)
             current_day += timedelta(days=1)
         
         print(f"[DEBUG] Past days: {len(past_days)}, Remaining days: {len(remaining_days)}")
+        print(f"[DEBUG] Past dates: {[d.strftime('%Y-%m-%d') for d in past_days]}")
+        print(f"[DEBUG] Remaining dates: {[d.strftime('%Y-%m-%d') for d in remaining_days]}")
         
         # Build player info with positions and injury status
         player_info = []
         for player in roster:
             team_abbr = player.get('team', '')
-            total_games = get_team_games_this_week(team_abbr) if team_abbr else 3
+            # Get weekly schedule (single source of truth for games count) for the REQUESTED week
+            weekly_sched = get_team_weekly_schedule(team_abbr, week_start) if team_abbr else []
+            total_games = sum(1 for day in weekly_sched if day.get('has_game')) if weekly_sched else 3
             
             roster_position = player.get('roster_position', '') or player.get('selected_position', '')
             is_on_il = roster_position in INACTIVE_POSITIONS
@@ -835,28 +951,83 @@ class FantasyPredictor:
         print(f"[DEBUG] Remaining days stats (projected): {remaining_stats}")
         print(f"[DEBUG] Remaining days games (projected, Yahoo logic): {remaining_games_counted}")
 
-        # Try to get actual games played from Yahoo (includes dropped players!)
-        # Stat ID '0' = Games Played (GP)
+        # Calculate actual games played based on weekly schedule for past days
+        # Count games from weekly_schedule for each player in past days
+        schedule_games_played = 0
+        for p in player_info:
+            # Skip IL players
+            if p['roster_position'] in INACTIVE_POSITIONS:
+                continue
+            
+            # Get weekly schedule for this player's team for the REQUESTED week
+            team_abbr = p['team_abbr']
+            weekly_sched = get_team_weekly_schedule(team_abbr, week_start) if team_abbr else []
+            
+            # Count games in past days
+            for day in past_days:
+                day_str = day.strftime('%Y-%m-%d')
+                # Find this day in the weekly schedule
+                for sched_day in weekly_sched:
+                    if sched_day.get('date') == day_str and sched_day.get('has_game'):
+                        schedule_games_played += 1
+                        break
+        
+        print(f"[DEBUG] Games played from schedule (past {len(past_days)} days): {schedule_games_played}")
+        print(f"[DEBUG] Games counted with Yahoo logic (calculated): {past_games_counted_calc}")
+        
+        # Try to get actual games played from Yahoo (this accounts for roster changes!)
         yahoo_gp = None
         if actual_stats:
             yahoo_gp = actual_stats.get('0') or actual_stats.get(0)
             if yahoo_gp:
                 try:
                     yahoo_gp = int(float(yahoo_gp))
+                    print(f"[DEBUG] Yahoo GP (actual, includes roster changes): {yahoo_gp} vs Schedule count: {schedule_games_played}")
                 except:
                     yahoo_gp = None
         
-        # Use Yahoo GP if available (more accurate - includes dropped players)
+        # Use Yahoo GP if available (accounts for players added/dropped mid-week)
+        # Otherwise fallback to schedule-based count
         if yahoo_gp is not None:
             past_games_counted = yahoo_gp
-            print(f"[DEBUG] Using Yahoo GP for past games: {past_games_counted} (vs calculated: {past_games_counted_calc})")
+            print(f"[DEBUG] Using Yahoo GP: {yahoo_gp} (accurate, includes roster changes)")
         else:
-            past_games_counted = past_games_counted_calc
-            print(f"[DEBUG] No Yahoo GP available, using calculated: {past_games_counted}")
+            past_games_counted = schedule_games_played
+            print(f"[DEBUG] Using schedule count: {schedule_games_played} (fallback, may be inaccurate)")
 
-        # Total games using Yahoo logic (max 10 per day for remaining)
-        total_games_yahoo = past_games_counted + remaining_games_counted
-        print(f"[DEBUG] Total games: {past_games_counted}/{total_games_yahoo}")
+        # Calculate total games based on weekly schedule for ALL days (past + remaining)
+        all_days = past_days + remaining_days
+        schedule_games_total = 0
+        for p in player_info:
+            # Skip IL players
+            if p['roster_position'] in INACTIVE_POSITIONS:
+                continue
+            
+            # Get weekly schedule for this player's team for the REQUESTED week
+            team_abbr = p['team_abbr']
+            weekly_sched = get_team_weekly_schedule(team_abbr, week_start) if team_abbr else []
+            
+            # Count games in all days of the week
+            for day in all_days:
+                day_str = day.strftime('%Y-%m-%d')
+                # Find this day in the weekly schedule
+                for sched_day in weekly_sched:
+                    if sched_day.get('date') == day_str and sched_day.get('has_game'):
+                        schedule_games_total += 1
+                        break
+        
+        print(f"[DEBUG] Total games from schedule (all {len(all_days)} days): {schedule_games_total}")
+        print(f"[DEBUG] Total games with Yahoo logic: {past_games_counted_calc + remaining_games_counted}")
+        
+        # Calculate total: past (from Yahoo if available) + remaining (projected)
+        if yahoo_gp is not None:
+            total_games_yahoo = yahoo_gp + remaining_games_counted
+            print(f"[DEBUG] Total games (Yahoo past + projected remaining): {yahoo_gp} + {remaining_games_counted} = {total_games_yahoo}")
+        else:
+            total_games_yahoo = schedule_games_total
+            print(f"[DEBUG] Total games (schedule-based fallback): {total_games_yahoo}")
+        
+        print(f"[DEBUG] Final: {past_games_counted}/{total_games_yahoo} games")
         
         # Use ACTUAL stats from Yahoo for past days if available
         # Only project remaining days
@@ -931,8 +1102,11 @@ class FantasyPredictor:
                 p['injury_factor']
             )
             
-            # Get weekly schedule for this player's team
-            weekly_sched = get_team_weekly_schedule(p['team_abbr']) if p['team_abbr'] else []
+            # Get weekly schedule for this player's team for the REQUESTED week
+            weekly_sched = get_team_weekly_schedule(p['team_abbr'], week_start) if p['team_abbr'] else []
+            
+            # Count games from weekly schedule (more accurate than get_team_games_this_week for future weeks)
+            games_count = sum(1 for day in weekly_sched if day.get('has_game')) if weekly_sched else p['total_games']
             
             player_projections.append(PlayerProjection(
                 player_key=p['player_key'],
@@ -942,7 +1116,7 @@ class FantasyPredictor:
                 roster_position=p['roster_position'],
                 status=p['status'],
                 injury_note=p['injury_note'],
-                games_this_week=p['total_games'],
+                games_this_week=games_count,
                 avg_stats=self._convert_stat_ids_to_names(p['avg_stats']),
                 projected_stats=proj_stats,
                 injury_adjustment=p['injury_factor'],
@@ -990,7 +1164,10 @@ class FantasyPredictor:
         for player in roster:
             # Get games this week for player's team
             team_abbr = player.get('team', '')
-            games = get_team_games_this_week(team_abbr) if team_abbr else 3
+            
+            # Get weekly schedule first (single source of truth)
+            weekly_sched = get_team_weekly_schedule(team_abbr) if team_abbr else []
+            games = sum(1 for day in weekly_sched if day.get('has_game')) if weekly_sched else 3
             
             # Get roster position (IL, IL+, BN, etc.)
             roster_position = player.get('roster_position', '')
@@ -1013,9 +1190,6 @@ class FantasyPredictor:
             # Get today's game info
             normalized_team = schedule._normalize_team_abbr(team_abbr) if team_abbr else ''
             game_today = todays_games.get(normalized_team) or todays_games.get(team_abbr)
-            
-            # Get weekly schedule for this player's team
-            weekly_sched = get_team_weekly_schedule(team_abbr) if team_abbr else []
             
             player_projections.append(PlayerProjection(
                 player_key=player['player_key'],
@@ -1203,6 +1377,22 @@ class FantasyPredictor:
                     converted[stat_name] = float(value) if value else 0
             except:
                 converted[stat_name] = 0
+        return converted
+    
+    def _convert_stats_to_categories(self, stats: Dict) -> Dict[str, float]:
+        """Convert Yahoo stat IDs to category names for display"""
+        converted = {}
+        for cat_name, stat_id in self.STAT_CATEGORIES.items():
+            value = stats.get(stat_id) or stats.get(int(stat_id)) or stats.get(str(stat_id)) or 0
+            try:
+                value = float(value)
+                # Convert decimal percentages to regular percentages (0.485 -> 48.5)
+                if cat_name in ['FG%', 'FT%']:
+                    if 0 < value < 1:
+                        value = value * 100
+                converted[cat_name] = value
+            except:
+                converted[cat_name] = 0
         return converted
     
     def format_prediction_report(self, prediction: MatchupPrediction) -> str:

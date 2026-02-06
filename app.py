@@ -1,14 +1,42 @@
 """
 Fantasy Basketball Predictor - Flask Web Application
 """
+import sys
+import io
+
+# Force UTF-8 encoding for console output (fixes Windows encoding issues)
+if sys.stdout.encoding != 'utf-8':
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+
 from flask import Flask, render_template, redirect, url_for, request, jsonify, session
 import os
 import json
+import threading
 
 from yahoo_auth import auth
 from yahoo_api import api
 from predictor import predictor, PlayoffWeekError
 from config import CATEGORIES
+
+
+def _preload_data():
+    """Pre-load external data in background."""
+    try:
+        # Pre-load Basketball Reference data
+        from basketball_reference import fetch_all_nba_season_averages
+        print("[Startup] Pre-loading Basketball Reference data...")
+        stats = fetch_all_nba_season_averages()
+        print(f"[Startup] Pre-loaded {len(stats)} player averages")
+        
+        # Pre-load NBA schedule data
+        from nba_schedule import _fetch_and_cache_full_schedule
+        print("[Startup] Pre-loading NBA schedule data...")
+        schedule = _fetch_and_cache_full_schedule()
+        print(f"[Startup] Pre-loaded schedule for {len(schedule)} dates")
+        
+    except Exception as e:
+        print(f"[Startup] Error pre-loading data: {e}")
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
@@ -150,6 +178,148 @@ def predict(league_key):
         return render_template('error.html', error=str(e))
 
 
+@app.route('/standings/<league_key>')
+def standings(league_key):
+    """Show league standings with week navigation"""
+    if not auth.is_authenticated():
+        return redirect(url_for('login'))
+    
+    week = request.args.get('week', type=int)
+    
+    try:
+        # Get league info
+        leagues = api.get_user_leagues()
+        league_info = next((l for l in leagues if l['league_key'] == league_key), None)
+        
+        league_name = league_info['name'] if league_info else 'League'
+        current_week = int(league_info['current_week']) if league_info else 1
+        start_week = int(league_info['start_week']) if league_info else 1
+        end_week = int(league_info['end_week']) if league_info else 24
+        
+        # Use current week if not specified
+        selected_week = week if week else current_week
+        
+        # Get current actual standings from Yahoo
+        standings_data = api.get_league_standings(league_key)
+        
+        # Get my team to highlight
+        my_team = api.get_my_team(league_key)
+        my_team_key = my_team['team_key'] if my_team else None
+        
+        # Calculate category records based on selected week
+        is_projection = selected_week >= current_week
+        
+        if selected_week < current_week:
+            # Past week: show actual records up to and including selected week
+            category_records = api.get_category_records(league_key, selected_week + 1)
+        else:
+            # Current or future week: show actual records + predictions
+            # Get actual records up to current week (before current week started)
+            category_records = api.get_category_records(league_key, current_week)
+            # Add predictions from current_week to selected_week
+            category_records = project_future_category_records(
+                league_key, category_records, current_week, selected_week
+            )
+        
+        # Re-rank teams based on projected category records
+        if is_projection and category_records:
+            standings_data = rerank_standings(standings_data, category_records)
+        
+        return render_template('standings.html',
+                             standings=standings_data,
+                             category_records=category_records,
+                             league_key=league_key,
+                             league_name=league_name,
+                             current_week=current_week,
+                             selected_week=selected_week,
+                             start_week=start_week,
+                             end_week=end_week,
+                             my_team_key=my_team_key,
+                             is_projection=is_projection)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return render_template('error.html', error=str(e))
+
+
+def rerank_standings(standings_data: list, category_records: dict) -> list:
+    """Re-rank teams based on category records (winning percentage)"""
+    from copy import deepcopy
+    
+    standings = deepcopy(standings_data)
+    
+    # Calculate win percentage for each team
+    for team in standings:
+        team_key = team['team_key']
+        if team_key in category_records:
+            cat_record = category_records[team_key]
+            cat_wins = cat_record.get('cat_wins', 0)
+            cat_losses = cat_record.get('cat_losses', 0)
+            cat_ties = cat_record.get('cat_ties', 0)
+            total_cats = cat_wins + cat_losses + cat_ties
+            
+            # Calculate winning percentage
+            if total_cats > 0:
+                team['_projected_pct'] = (cat_wins / total_cats) * 100
+            else:
+                team['_projected_pct'] = 0
+        else:
+            team['_projected_pct'] = 0
+    
+    # Sort by winning percentage (highest first)
+    standings.sort(key=lambda x: x.get('_projected_pct', 0), reverse=True)
+    
+    # Update ranks
+    for i, team in enumerate(standings, start=1):
+        team['rank'] = i
+    
+    return standings
+
+
+def project_future_category_records(league_key: str, current_records: dict, 
+                                      current_week: int, target_week: int) -> dict:
+    """Project category records for future weeks based on matchup predictions"""
+    from copy import deepcopy
+    
+    # Start with current category records
+    projected = deepcopy(current_records)
+    
+    # For each week from current to target, add predicted category results
+    for week in range(current_week, target_week + 1):
+        try:
+            predictions = predictor.predict_all_matchups(league_key, week, current_week)
+            
+            for matchup in predictions:
+                team1_key = matchup['team1']['key']
+                team2_key = matchup['team2']['key']
+                team1_cat_wins = matchup['team1']['wins']  # Category wins
+                team2_cat_wins = matchup['team2']['wins']  # Category wins
+                
+                # Initialize if not exists
+                if team1_key not in projected:
+                    projected[team1_key] = {'cat_wins': 0, 'cat_losses': 0, 'cat_ties': 0}
+                if team2_key not in projected:
+                    projected[team2_key] = {'cat_wins': 0, 'cat_losses': 0, 'cat_ties': 0}
+                
+                # Add category wins/losses
+                projected[team1_key]['cat_wins'] += team1_cat_wins
+                projected[team1_key]['cat_losses'] += team2_cat_wins
+                projected[team2_key]['cat_wins'] += team2_cat_wins
+                projected[team2_key]['cat_losses'] += team1_cat_wins
+                
+                # Calculate ties (9 categories - wins - losses for each team)
+                ties = 9 - team1_cat_wins - team2_cat_wins
+                if ties > 0:
+                    projected[team1_key]['cat_ties'] += ties
+                    projected[team2_key]['cat_ties'] += ties
+                    
+        except Exception as e:
+            print(f"[DEBUG] Error predicting week {week}: {e}")
+            continue
+    
+    return projected
+
+
 @app.route('/predict/<league_key>/all')
 def predict_all(league_key):
     """Show predictions for all matchups in the league"""
@@ -172,7 +342,7 @@ def predict_all(league_key):
         selected_week = week if week else current_week
         
         # Get all matchup predictions
-        predictions = predictor.predict_all_matchups(league_key, selected_week)
+        predictions = predictor.predict_all_matchups(league_key, selected_week, current_week)
         
         # Get my team to highlight
         my_team = api.get_my_team(league_key)
@@ -304,14 +474,17 @@ def logout():
 
 if __name__ == '__main__':
     print("\n" + "="*50)
-    print("🏀 Fantasy Basketball Predictor")
+    print("Fantasy Basketball Predictor")
     print("="*50)
-    print("\nפותח את האפליקציה...")
-    print("לך ל: https://localhost:5000")
-    print("\n⚠️  הדפדפן יציג אזהרת אבטחה - זה בסדר!")
-    print("   לחץ 'Advanced' ואז 'Proceed to localhost'")
-    print("\nלעצירה: Ctrl+C")
+    print("\nStarting application...")
+    print("Go to: http://localhost:5000")
+    print("\nTo stop: Ctrl+C")
     print("="*50 + "\n")
     
-    # Run with HTTPS using adhoc SSL certificate
-    app.run(debug=True, port=5000, ssl_context='adhoc')
+    # Pre-load external data in background
+    # This makes the first prediction much faster
+    preload_thread = threading.Thread(target=_preload_data, daemon=True)
+    preload_thread.start()
+    
+    # Run with HTTP (no SSL needed for local development)
+    app.run(debug=True, port=5000)
