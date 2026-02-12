@@ -5,6 +5,8 @@ import requests
 import xml.etree.ElementTree as ET
 import json
 import os
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Dict, List, Optional, Any
 from datetime import datetime, timedelta
 from functools import wraps
@@ -19,14 +21,16 @@ CACHE_FILE = 'yahoo_api_cache.json'
 
 # Cache settings (in seconds)
 CACHE_TTL = {
-    'leagues': 300,      # 5 minutes - leagues don't change often
-    'settings': 600,     # 10 minutes - settings rarely change
-    'team': 120,         # 2 minutes - team info changes occasionally
-    'roster': 60,        # 1 minute - roster can change
-    'matchup': 60,       # 1 minute - matchup stats update
-    'scoreboard': 300,   # 5 minutes - scoreboard (past weeks don't change)
-    'player_stats': 300, # 5 minutes - player stats are relatively stable
-    'cat_records': 3600, # 1 hour - category records for past weeks don't change
+    'leagues': 86400,    # 24 hours - leagues rarely change
+    'settings': 86400,   # 24 hours - settings rarely change
+    'team': 7200,        # 2 hours - team info changes occasionally
+    'roster': 3600,      # 1 hour - roster can change (trades, adds/drops)
+    'matchup': 1800,     # 30 minutes - matchup stats update during games
+    'scoreboard': 86400, # 24 hours - scoreboard (past weeks don't change)
+    'standings': 3600,   # 1 hour - standings
+    'player_stats': 3600,# 1 hour - player stats are relatively stable
+    'cat_records': 604800, # 7 days - category records for past weeks NEVER change
+    'transactions': 1800,  # 30 min - transactions can change during the week
 }
 
 # In-memory cache: {key: {'data': ..., 'expires': datetime}}
@@ -118,6 +122,11 @@ def _set_cached(key: str, data: Any, ttl_seconds: int):
     }
     # Save to disk after each update
     _save_cache_to_disk()
+
+
+def load_disk_cache():
+    """Load cache from disk into memory (call at startup for faster first request)."""
+    _load_cache_from_disk()
 
 
 def clear_cache():
@@ -330,13 +339,17 @@ class YahooFantasyAPI:
             for stat in team.findall('.//yh:stat', NS):
                 stat_id = self._get_text(stat, 'yh:stat_id')
                 value = self._get_text(stat, 'yh:value')
-                team_data['stats'][stat_id] = self._parse_stat_value(value)
-            
+                parsed = self._parse_stat_value(value)
+                team_data['stats'][stat_id] = parsed
+                if stat_id is not None and str(stat_id).strip() == '0':
+                    team_data['stats'][0] = parsed
             teams_data.append(team_data)
         
         # Determine which is my team and which is opponent
         result = {
             'week': self._get_text(matchup, 'yh:week'),
+            'week_start': self._get_text(matchup, 'yh:week_start'),
+            'week_end': self._get_text(matchup, 'yh:week_end'),
             'my_team': None,
             'opponent': None
         }
@@ -368,6 +381,8 @@ class YahooFantasyAPI:
         for matchup in root.findall('.//yh:matchup', NS):
             matchup_data = {
                 'week': self._get_text(matchup, 'yh:week'),
+                'week_start': self._get_text(matchup, 'yh:week_start'),
+                'week_end': self._get_text(matchup, 'yh:week_end'),
                 'teams': []
             }
             
@@ -380,11 +395,14 @@ class YahooFantasyAPI:
                     'stats': {}
                 }
                 
-                # Get current stats for this team
+                # Get current stats for this team (ensure stat 0 = Games Played is also keyed as int)
                 for stat in team.findall('.//yh:stat', NS):
                     stat_id = self._get_text(stat, 'yh:stat_id')
                     value = self._get_text(stat, 'yh:value')
-                    team_data['stats'][stat_id] = self._parse_stat_value(value)
+                    parsed = self._parse_stat_value(value)
+                    team_data['stats'][stat_id] = parsed
+                    if stat_id is not None and str(stat_id).strip() == '0':
+                        team_data['stats'][0] = parsed
                 
                 matchup_data['teams'].append(team_data)
             
@@ -431,8 +449,88 @@ class YahooFantasyAPI:
         # Sort by rank
         standings.sort(key=lambda x: x['rank'])
         
-        _set_cached(cache_key, standings, CACHE_TTL['scoreboard'])
+        _set_cached(cache_key, standings, CACHE_TTL['standings'])
         return standings
+    
+    def get_acquisition_dates_for_team(
+        self, league_key: str, team_key: str,
+        week_start_date: Optional[datetime] = None, week_end_date: Optional[datetime] = None
+    ) -> Dict[str, datetime]:
+        """Get the first date each player was added to the team during the given week (for roster-change-aware game count).
+        
+        Fetches league transactions, filters to adds (and trades where player is acquired) to this team,
+        and returns {player_key: date} so we don't count a player on days before his acquisition_date.
+        """
+        cache_key = f"acquisition_dates:{league_key}:{team_key}:{week_start_date.date() if week_start_date else 'none'}:{week_end_date.date() if week_end_date else 'none'}"
+        cached = _get_cached(cache_key)
+        if cached is not None:
+            # Restore datetime from ISO string
+            return {k: datetime.fromisoformat(v) for k, v in cached.items()}
+        
+        try:
+            endpoint = f"league/{league_key}/transactions"
+            root = self._make_request(endpoint)
+        except Exception as e:
+            print(f"[Yahoo API] Could not fetch transactions: {e}")
+            return {}
+        
+        # acquisition_dates[player_key] = date (only for players added to team_key during the week)
+        acquisition_dates: Dict[str, datetime] = {}
+        week_start = (week_start_date.date() if week_start_date else None)
+        week_end = (week_end_date.date() if week_end_date else None)
+        
+        for txn in root.findall('.//yh:transaction', NS):
+            txn_type = self._get_text(txn, 'yh:type')
+            ts = self._get_text(txn, 'yh:timestamp')
+            if not ts:
+                continue
+            try:
+                txn_dt = datetime.utcfromtimestamp(int(ts))
+            except (TypeError, ValueError, OSError):
+                continue
+            txn_date = txn_dt.date()
+            if week_start is not None and txn_date < week_start:
+                continue
+            if week_end is not None and txn_date > week_end:
+                continue
+            
+            # Look at players in this transaction (try multiple XML structures)
+            txn_players = (
+                txn.findall('.//yh:transaction_players/yh:player', NS) or
+                txn.findall('.//yh:players/yh:player', NS) or
+                txn.findall('.//yh:player', NS)
+            )
+            for txn_player in txn_players:
+                dest_team = self._get_text(txn_player, 'yh:destination_team_key') or self._get_text(txn_player, './/yh:destination_team_key')
+                src_team = self._get_text(txn_player, 'yh:source_team_key') or self._get_text(txn_player, './/yh:source_team_key')
+                player_type = self._get_text(txn_player, 'yh:type') or self._get_text(txn_player, './/yh:type')
+                player_key = self._get_text(txn_player, 'yh:player_key') or self._get_text(txn_player, './/yh:player_key')
+                if not player_key:
+                    # Player key might be inside a child
+                    p = txn_player.find('yh:player_key', NS) or txn_player.find('.//yh:player_key', NS)
+                    if p is not None and p.text:
+                        player_key = p.text
+                
+                if not player_key:
+                    continue
+                # Add to our team: destination is us, or we're the destination in a trade
+                if dest_team != team_key:
+                    continue
+                # type can be 'add' (waiver/free agent) or part of trade
+                if txn_type and txn_type.lower() not in ('add', 'trade'):
+                    continue
+                if player_type and player_type.lower() not in ('add', 'trade'):
+                    continue
+                # Use transaction date as acquisition date (earliest add in the week)
+                txn_date_dt = datetime.combine(txn_date, datetime.min.time())
+                if player_key not in acquisition_dates or txn_date_dt < acquisition_dates[player_key]:
+                    acquisition_dates[player_key] = txn_date_dt
+        
+        # Cache as ISO strings
+        _set_cached(cache_key, {k: v.isoformat() for k, v in acquisition_dates.items()}, CACHE_TTL['transactions'])
+        if acquisition_dates:
+            print(f"[Yahoo API] Acquisition dates for team: {acquisition_dates}")
+        return acquisition_dates
     
     def get_category_records(self, league_key: str, current_week: int) -> Dict[str, Dict]:
         """Calculate category records (wins/losses/ties per category) for all teams.
@@ -467,47 +565,41 @@ class YahooFantasyAPI:
         
         # Initialize records for all teams
         team_records = {}
+        records_lock = threading.Lock()
         
-        # Go through each completed week
         completed_weeks = current_week - 1 if current_week > 1 else 0
-        print(f"[Yahoo API] Calculating category records for {completed_weeks} completed weeks")
+        weeks_list = list(range(1, completed_weeks + 1))
         
-        for week in range(1, completed_weeks + 1):
+        # Fetch all scoreboards in parallel (instead of 15 sequential API calls)
+        def process_week(week: int):
             try:
-                matchups = self.get_league_scoreboard(league_key, week)
-                
-                for matchup in matchups:
-                    teams = matchup.get('teams', [])
-                    if len(teams) != 2:
-                        continue
-                    
-                    team1, team2 = teams[0], teams[1]
-                    team1_key = team1.get('team_key')
-                    team2_key = team2.get('team_key')
-                    
-                    # Initialize team records if not exists
+                return week, self.get_league_scoreboard(league_key, week)
+            except Exception:
+                return week, None
+        
+        def update_records(matchups):
+            for matchup in matchups:
+                teams = matchup.get('teams', [])
+                if len(teams) != 2:
+                    continue
+                team1, team2 = teams[0], teams[1]
+                team1_key = team1.get('team_key')
+                team2_key = team2.get('team_key')
+                if not team1_key or not team2_key:
+                    continue
+                team1_stats = team1.get('stats', {})
+                team2_stats = team2.get('stats', {})
+                with records_lock:
                     for team_key in [team1_key, team2_key]:
                         if team_key and team_key not in team_records:
                             team_records[team_key] = {'cat_wins': 0, 'cat_losses': 0, 'cat_ties': 0}
-                    
-                    if not team1_key or not team2_key:
-                        continue
-                    
-                    # Compare each category
-                    team1_stats = team1.get('stats', {})
-                    team2_stats = team2.get('stats', {})
-                    
                     for stat_id, cat_name in CATEGORIES.items():
                         val1 = team1_stats.get(stat_id, 0) or 0
                         val2 = team2_stats.get(stat_id, 0) or 0
-                        
                         try:
-                            val1 = float(val1)
-                            val2 = float(val2)
-                        except:
+                            val1, val2 = float(val1), float(val2)
+                        except (TypeError, ValueError):
                             continue
-                        
-                        # For turnovers, lower is better
                         if cat_name == 'TO':
                             if val1 < val2:
                                 team_records[team1_key]['cat_wins'] += 1
@@ -519,7 +611,6 @@ class YahooFantasyAPI:
                                 team_records[team1_key]['cat_ties'] += 1
                                 team_records[team2_key]['cat_ties'] += 1
                         else:
-                            # For all other categories, higher is better
                             if val1 > val2:
                                 team_records[team1_key]['cat_wins'] += 1
                                 team_records[team2_key]['cat_losses'] += 1
@@ -529,56 +620,64 @@ class YahooFantasyAPI:
                             else:
                                 team_records[team1_key]['cat_ties'] += 1
                                 team_records[team2_key]['cat_ties'] += 1
-                                
-            except Exception as e:
-                print(f"[Yahoo API] Error getting scoreboard for week {week}: {e}")
-                continue
+        
+        with ThreadPoolExecutor(max_workers=min(10, len(weeks_list) or 1)) as executor:
+            future_to_week = {executor.submit(process_week, w): w for w in weeks_list}
+            for future in as_completed(future_to_week):
+                try:
+                    week, matchups = future.result()
+                    if matchups:
+                        update_records(matchups)
+                except Exception:
+                    continue
         
         _set_cached(cache_key, team_records, CACHE_TTL['cat_records'])
         return team_records
     
     def get_player_stats_averages(self, player_keys: List[str]) -> Dict[str, Dict]:
-        """Get season stats for multiple players"""
+        """Get season stats for multiple players (cached per batch of 25)."""
         if not player_keys:
             return {}
         
-        print(f"[DEBUG] Getting stats for {len(player_keys)} players...")
-        
-        # Yahoo API allows max 25 players per request
+        # Yahoo API allows max 25 players per request - cache each batch
         results = {}
         for i in range(0, len(player_keys), 25):
             batch = player_keys[i:i+25]
+            batch_key = ','.join(sorted(batch))
+            cache_key = f"player_stats:{batch_key}"
+            cached_batch = _get_cached(cache_key)
+            if cached_batch is not None:
+                results.update(cached_batch)
+                continue
+            
             keys_str = ','.join(batch)
             
+            batch_results = {}
             try:
-                # Try to get season stats
-                print(f"[DEBUG] Trying: players;player_keys=.../stats;type=season")
                 root = self._make_request(f"players;player_keys={keys_str}/stats;type=season")
                 
                 players_found = root.findall('.//yh:player', NS)
-                print(f"[DEBUG] Found {len(players_found)} players in response")
                 
                 for player in players_found:
                     player_key = self._get_text(player, 'yh:player_key')
                     stats = {}
                     
-                    stat_elements = player.findall('.//yh:stat', NS)
-                    print(f"[DEBUG] Player {player_key}: found {len(stat_elements)} stat elements")
-                    
-                    for stat in stat_elements:
+                    for stat in player.findall('.//yh:stat', NS):
                         stat_id = self._get_text(stat, 'yh:stat_id')
                         value = self._get_text(stat, 'yh:value')
                         stats[stat_id] = self._parse_stat_value(value)
                     
                     if stats:
+                        stats['_is_average'] = False
                         results[player_key] = stats
-                        print(f"[DEBUG] Player {player_key} stats: {list(stats.keys())[:5]}...")
+                        batch_results[player_key] = stats
+                
+                if batch_results:
+                    _set_cached(cache_key, batch_results, CACHE_TTL['player_stats'])
                         
             except Exception as e:
-                print(f"[DEBUG] Error with type=season: {e}")
                 # Try without type parameter
                 try:
-                    print(f"[DEBUG] Trying: players;player_keys=.../stats (no type)")
                     root = self._make_request(f"players;player_keys={keys_str}/stats")
                     
                     for player in root.findall('.//yh:player', NS):
@@ -591,11 +690,14 @@ class YahooFantasyAPI:
                             stats[stat_id] = self._parse_stat_value(value)
                         
                         if stats:
+                            stats['_is_average'] = False
                             results[player_key] = stats
+                            batch_results[player_key] = stats
+                    
+                    if batch_results:
+                        _set_cached(cache_key, batch_results, CACHE_TTL['player_stats'])
                 except Exception as e2:
-                    print(f"[DEBUG] Error without type: {e2}")
-        
-        print(f"[DEBUG] Total players with stats: {len(results)}")
+                    pass
         return results
     
     def get_player_stats_last30(self, player_keys: List[str]) -> Dict[str, Dict]:

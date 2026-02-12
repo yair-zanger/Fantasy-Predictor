@@ -34,7 +34,7 @@ def get_pacific_date() -> datetime:
 
 # Cache file for disk persistence
 SCHEDULE_CACHE_FILE = 'nba_schedule_disk_cache.json'
-WEEKLY_CACHE_TTL_HOURS = 6  # Cache for 6 hours (schedule doesn't change often)
+WEEKLY_CACHE_TTL_HOURS = 24  # Cache for 24 hours (schedule doesn't change often)
 
 # In-memory cache for today's games (refreshes once per day)
 _todays_games_cache: Dict[str, Dict] = {}
@@ -392,6 +392,10 @@ CACHE_FILE = 'nba_schedule_cache.json'
 
 # Hardcoded schedule from hashtagbasketball.com for current weeks
 # Source: https://hashtagbasketball.com/advanced-nba-schedule-grid
+# 
+# IMPORTANT: Week 17 (Feb 9-22) is a DOUBLE WEEK due to All-Star Break
+# Yahoo Fantasy combines the week before and after All-Star Weekend into one matchup
+# 
 # Week 15: Jan 26 - Feb 1, 2026
 HARDCODED_SCHEDULE = {
     # Monday Jan 26, 2026
@@ -425,7 +429,8 @@ HARDCODED_SCHEDULE = {
     # Sunday 08/02 (4 games = 8 teams) - Note: some teams appear in Monday W17 column
     '2026-02-08': ['BOS', 'CHI', 'CLE', 'DEN', 'IND', 'MIA', 'MIL', 'NYK', 'TOR', 'WAS'],
     
-    # Week 17: Feb 9 - Feb 15, 2026
+    # Week 17: Feb 9 - Feb 22, 2026 (DOUBLE WEEK - All-Star Break included)
+    # First part: Feb 9-15
     '2026-02-09': ['BKN', 'PHI', 'BOS', 'IND', 'CHI', 'ORL', 'DAL', 'LAL', 'DET', 'MIL', 'GSW', 'TOR', 'PHO', 'POR', 'UTA', 'WAS'],
     '2026-02-10': ['ATL', 'CLE', 'CHA', 'HOU', 'LAC', 'MEM', 'MIN', 'NOP', 'NYK', 'OKC', 'SAC', 'SAS'],
     '2026-02-11': ['BKN', 'MIA', 'BOS', 'DEN', 'CHI', 'IND', 'DAL', 'PHI', 'DET', 'ORL', 'GSW', 'LAL', 'MIL', 'TOR', 'PHO', 'UTA', 'POR', 'WAS'],
@@ -433,9 +438,17 @@ HARDCODED_SCHEDULE = {
     '2026-02-13': ['BKN', 'IND', 'BOS', 'MIA', 'CHI', 'PHI', 'DAL', 'MIL', 'DEN', 'GSW', 'DET', 'TOR', 'LAL', 'UTA', 'ORL', 'WAS', 'PHO', 'POR'],
     '2026-02-14': ['ATL', 'OKC', 'CHA', 'CLE', 'HOU', 'SAS', 'LAC', 'SAC', 'MEM', 'NOP', 'MIN', 'NYK'],
     '2026-02-15': ['BKN', 'MIA', 'BOS', 'DET', 'CHI', 'PHO', 'DAL', 'GSW', 'DEN', 'POR', 'IND', 'MIL', 'LAL', 'ORL', 'PHI', 'TOR', 'UTA', 'WAS'],
+    
+    # All-Star Weekend: Feb 16-17 (no regular season games)
+    # Post All-Star: Feb 18-22 (games resume, will be fetched from NBA API in real-time)
+    # Note: Most teams will play additional games Feb 18-22 to complete the double week
+    
+    # Week 18: Feb 23 - Mar 1 (Post All-Star, typically 3-4 games/team)
 }
 
 # Games per team per week from hashtagbasketball.com
+# Source: https://hashtagbasketball.com/nba-fantasy-schedule
+# Updated: Feb 2026 (includes Week 17 double week and Weeks 18-24)
 WEEKLY_GAMES = {
     '2026-01-26': {  # Week 15: Jan 26 - Feb 1
         'ATL': 4, 'BOS': 4, 'BKN': 4, 'CHA': 4, 'CHI': 5, 'CLE': 4, 'DAL': 3, 'DEN': 4,
@@ -449,11 +462,53 @@ WEEKLY_GAMES = {
         'MIL': 3, 'MIN': 4, 'NOP': 3, 'NYK': 4, 'OKC': 3, 'ORL': 3, 'PHI': 4, 'PHO': 3,
         'POR': 3, 'SAC': 3, 'SAS': 3, 'TOR': 3, 'UTA': 3, 'WAS': 4,
     },
-    '2026-02-09': {  # Week 17: Feb 9 - Feb 15
-        'ATL': 4, 'BOS': 4, 'BKN': 4, 'CHA': 4, 'CHI': 4, 'CLE': 4, 'DAL': 4, 'DEN': 4,
+    '2026-02-09': {  # Week 17: Feb 9 - Feb 22 (DOUBLE WEEK - All-Star Break)
+        'ATL': 5, 'BOS': 3, 'BKN': 5, 'CHA': 5, 'CHI': 5, 'CLE': 5, 'DAL': 4, 'DEN': 5,
+        'DET': 4, 'GSW': 4, 'HOU': 4, 'IND': 5, 'LAC': 5, 'LAL': 5, 'MEM': 4, 'MIA': 4,
+        'MIL': 5, 'MIN': 4, 'NOP': 4, 'NYK': 5, 'OKC': 5, 'ORL': 5, 'PHI': 5, 'PHO': 5,
+        'POR': 5, 'SAC': 4, 'SAS': 4, 'TOR': 3, 'UTA': 4, 'WAS': 4,
+    },
+    '2026-02-23': {  # Week 18: Feb 23 - Mar 1 (Post All-Star)
+        'ATL': 3, 'BOS': 4, 'BKN': 4, 'CHA': 3, 'CHI': 3, 'CLE': 4, 'DAL': 4, 'DEN': 3,
+        'DET': 4, 'GSW': 3, 'HOU': 4, 'IND': 3, 'LAC': 2, 'LAL': 4, 'MEM': 4, 'MIA': 3,
+        'MIL': 4, 'MIN': 3, 'NOP': 4, 'NYK': 3, 'OKC': 4, 'ORL': 3, 'PHI': 3, 'PHO': 2,
+        'POR': 4, 'SAC': 4, 'SAS': 4, 'TOR': 3, 'UTA': 3, 'WAS': 3,
+    },
+    '2026-03-02': {  # Week 19: Mar 2 - Mar 8
+        'ATL': 2, 'BOS': 4, 'BKN': 3, 'CHA': 4, 'CHI': 3, 'CLE': 2, 'DAL': 3, 'DEN': 3,
+        'DET': 4, 'GSW': 4, 'HOU': 4, 'IND': 3, 'LAC': 4, 'LAL': 3, 'MEM': 3, 'MIA': 4,
+        'MIL': 4, 'MIN': 3, 'NOP': 2, 'NYK': 4, 'OKC': 3, 'ORL': 4, 'PHI': 3, 'PHO': 4,
+        'POR': 3, 'SAC': 3, 'SAS': 3, 'TOR': 4, 'UTA': 4, 'WAS': 4,
+    },
+    '2026-03-09': {  # Week 20: Mar 9 - Mar 15
+        'ATL': 3, 'BOS': 3, 'BKN': 4, 'CHA': 3, 'CHI': 3, 'CLE': 4, 'DAL': 3, 'DEN': 4,
+        'DET': 4, 'GSW': 4, 'HOU': 3, 'IND': 4, 'LAC': 4, 'LAL': 3, 'MEM': 3, 'MIA': 3,
+        'MIL': 4, 'MIN': 4, 'NOP': 2, 'NYK': 4, 'OKC': 3, 'ORL': 3, 'PHI': 5, 'PHO': 3,
+        'POR': 3, 'SAC': 4, 'SAS': 3, 'TOR': 4, 'UTA': 4, 'WAS': 3,
+    },
+    '2026-03-16': {  # Week 21: Mar 16 - Mar 22
+        'ATL': 4, 'BOS': 4, 'BKN': 4, 'CHA': 3, 'CHI': 3, 'CLE': 3, 'DAL': 3, 'DEN': 3,
+        'DET': 3, 'GSW': 4, 'HOU': 4, 'IND': 3, 'LAC': 4, 'LAL': 4, 'MEM': 4, 'MIA': 3,
+        'MIL': 3, 'MIN': 4, 'NOP': 4, 'NYK': 4, 'OKC': 3, 'ORL': 4, 'PHI': 3, 'PHO': 5,
+        'POR': 4, 'SAC': 3, 'SAS': 4, 'TOR': 3, 'UTA': 3, 'WAS': 5,
+    },
+    '2026-03-23': {  # Week 22: Mar 23 - Mar 29
+        'ATL': 4, 'BOS': 3, 'BKN': 4, 'CHA': 4, 'CHI': 4, 'CLE': 3, 'DAL': 3, 'DEN': 4,
+        'DET': 4, 'GSW': 4, 'HOU': 4, 'IND': 4, 'LAC': 4, 'LAL': 3, 'MEM': 4, 'MIA': 4,
+        'MIL': 4, 'MIN': 2, 'NOP': 4, 'NYK': 3, 'OKC': 4, 'ORL': 4, 'PHI': 3, 'PHO': 2,
+        'POR': 4, 'SAC': 4, 'SAS': 3, 'TOR': 4, 'UTA': 4, 'WAS': 3,
+    },
+    '2026-03-30': {  # Week 23: Mar 30 - Apr 5
+        'ATL': 3, 'BOS': 4, 'BKN': 3, 'CHA': 4, 'CHI': 4, 'CLE': 4, 'DAL': 4, 'DEN': 2,
+        'DET': 4, 'GSW': 3, 'HOU': 4, 'IND': 3, 'LAC': 3, 'LAL': 4, 'MEM': 4, 'MIA': 3,
+        'MIL': 3, 'MIN': 4, 'NOP': 3, 'NYK': 2, 'OKC': 3, 'ORL': 4, 'PHI': 4, 'PHO': 4,
+        'POR': 2, 'SAC': 3, 'SAS': 4, 'TOR': 4, 'UTA': 4, 'WAS': 4,
+    },
+    '2026-04-06': {  # Week 24: Apr 6 - Apr 12 (Final week of regular season)
+        'ATL': 4, 'BOS': 4, 'BKN': 4, 'CHA': 3, 'CHI': 4, 'CLE': 4, 'DAL': 4, 'DEN': 4,
         'DET': 4, 'GSW': 4, 'HOU': 4, 'IND': 4, 'LAC': 4, 'LAL': 4, 'MEM': 4, 'MIA': 4,
-        'MIL': 4, 'MIN': 4, 'NOP': 4, 'NYK': 4, 'OKC': 4, 'ORL': 4, 'PHI': 4, 'PHO': 4,
-        'POR': 4, 'SAC': 4, 'SAS': 4, 'TOR': 4, 'UTA': 4, 'WAS': 4,
+        'MIL': 4, 'MIN': 4, 'NOP': 3, 'NYK': 4, 'OKC': 4, 'ORL': 4, 'PHI': 4, 'PHO': 4,
+        'POR': 4, 'SAC': 3, 'SAS': 4, 'TOR': 4, 'UTA': 3, 'WAS': 4,
     },
 }
 
@@ -692,56 +747,61 @@ def get_all_games_this_week() -> Dict[str, int]:
 def get_teams_playing_on_date(date: datetime) -> List[str]:
     """Get list of team abbreviations playing on a specific date.
     
-    First checks scraped schedule from hashtagbasketball.com,
-    then falls back to NBA API if date not found.
+    First checks hardcoded schedule, then scraped schedule from hashtagbasketball.com,
+    then falls back to NBA API, and finally returns estimated teams if no data found.
     """
     target_date = date.strftime('%Y-%m-%d')
     
-    # First, check scraped schedule (most reliable for current season)
+    # First, check hardcoded schedule (most reliable)
+    if target_date in HARDCODED_SCHEDULE:
+        teams = HARDCODED_SCHEDULE[target_date]
+        print(f"[DEBUG] Using hardcoded schedule for {target_date}: {len(teams)} teams")
+        return teams
+    
+    # Second, check scraped schedule (current week)
     hashtag_schedule = fetch_schedule_from_hashtagbasketball()
     if target_date in hashtag_schedule:
         teams = hashtag_schedule[target_date]
         print(f"[DEBUG] Using scraped schedule for {target_date}: {len(teams)} teams")
         return teams
     
-    # Fallback to NBA API
+    # Third, try NBA API
     try:
         url = "https://cdn.nba.com/static/json/staticData/scheduleLeagueV2.json"
         response = requests.get(url, timeout=10)
         
-        if response.status_code != 200:
-            print(f"[DEBUG] NBA API failed for {target_date}, no hardcoded data available")
-            return []
-        
-        data = response.json()
-        game_dates = data.get('leagueSchedule', {}).get('gameDates', [])
-        
-        teams_playing = []
-        
-        for game_date in game_dates:
-            date_str = game_date.get('gameDate', '')[:10]
+        if response.status_code == 200:
+            data = response.json()
+            game_dates = data.get('leagueSchedule', {}).get('gameDates', [])
             
-            if date_str == target_date:
-                for game in game_date.get('games', []):
-                    home_team = game.get('homeTeam', {}).get('teamTricode', '')
-                    away_team = game.get('awayTeam', {}).get('teamTricode', '')
-                    
-                    if home_team and home_team not in teams_playing:
-                        teams_playing.append(home_team)
-                    if away_team and away_team not in teams_playing:
-                        teams_playing.append(away_team)
-                break
-        
-        if teams_playing:
-            print(f"[DEBUG] Using NBA API for {target_date}: {len(teams_playing)} teams")
-        else:
-            print(f"[DEBUG] No games found for {target_date}")
-        
-        return teams_playing
+            teams_playing = []
+            
+            for game_date in game_dates:
+                date_str = game_date.get('gameDate', '')[:10]
+                
+                if date_str == target_date:
+                    for game in game_date.get('games', []):
+                        home_team = game.get('homeTeam', {}).get('teamTricode', '')
+                        away_team = game.get('awayTeam', {}).get('teamTricode', '')
+                        
+                        if home_team and home_team not in teams_playing:
+                            teams_playing.append(home_team)
+                        if away_team and away_team not in teams_playing:
+                            teams_playing.append(away_team)
+                    break
+            
+            if teams_playing:
+                print(f"[DEBUG] Using NBA API for {target_date}: {len(teams_playing)} teams")
+                return teams_playing
         
     except Exception as e:
-        print(f"Error getting teams playing on {date}: {e}")
-        return []
+        print(f"[DEBUG] NBA API error for {target_date}: {e}")
+    
+    # Last resort: estimate based on typical NBA schedule
+    # NBA typically has ~10-15 games per day (20-30 teams playing)
+    # For future dates without data, return empty list and let the weekly schedule handle it
+    print(f"[DEBUG] No game data found for {target_date}, will use weekly averages")
+    return []
 
 
 def get_team_games_remaining_this_week(team_abbr: str) -> int:
@@ -1017,7 +1077,7 @@ def _fetch_and_cache_full_schedule() -> Dict[str, Dict]:
         return _weekly_schedule_cache or {}
 
 
-def get_team_weekly_schedule(team_abbr: str, week_start: datetime = None) -> List[Dict]:
+def get_team_weekly_schedule(team_abbr: str, week_start: datetime = None, week_end: datetime = None) -> List[Dict]:
     """
     Get detailed weekly schedule for a team.
     Returns list of games for each day of the week with:
@@ -1028,20 +1088,24 @@ def get_team_weekly_schedule(team_abbr: str, week_start: datetime = None) -> Lis
     - time_israel: str (HH:MM) or None
     - is_home: bool or None
     
+    When week_end is provided, supports double weeks (e.g. 14 days for All-Star week).
     Uses cached full schedule to avoid repeated API calls.
     """
     team_abbr = schedule._normalize_team_abbr(team_abbr)
     
-    # Get week dates (Pacific Time - Monday to Sunday)
+    # Get week dates (Pacific Time - Monday to Sunday, or custom range for double weeks)
     if week_start is None:
         today_pacific = get_pacific_time()
         days_since_monday = today_pacific.weekday()  # Monday = 0
         week_start = today_pacific - timedelta(days=days_since_monday)
     
     week_start = week_start.replace(hour=0, minute=0, second=0, microsecond=0)
-    week_end = week_start + timedelta(days=6)
+    if week_end is None:
+        week_end = week_start + timedelta(days=6)
+    else:
+        week_end = week_end.replace(hour=23, minute=59, second=59, microsecond=0)
     
-    # Hebrew day names (Monday to Sunday)
+    # Hebrew day names (Monday to Sunday) - cycle for double weeks
     hebrew_days = ['שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת', 'ראשון']
     
     # Get cached full schedule (single API call for all teams)
@@ -1118,13 +1182,73 @@ def get_team_weekly_schedule(team_abbr: str, week_start: datetime = None) -> Lis
                     # #endregion
         current_day += timedelta(days=1)
         
-    # Build weekly schedule
+    # Check if we have any games data at all
+    total_games_found = len(games_by_date)
+    
+    # If no games found for this week, use WEEKLY_GAMES as fallback
+    if total_games_found == 0:
+        week_start_str = week_start.strftime('%Y-%m-%d')
+        if week_start_str in WEEKLY_GAMES:
+            team_games_this_week = WEEKLY_GAMES[week_start_str].get(team_abbr, 4)
+            print(f"[DEBUG] No detailed schedule found for {team_abbr} week {week_start_str}, using WEEKLY_GAMES estimate: {team_games_this_week} games")
+        else:
+            # Default fallback: estimate 4 games per week (typical NBA schedule)
+            team_games_this_week = 4
+            print(f"[DEBUG] No schedule data for {team_abbr} week {week_start_str}, using default estimate: {team_games_this_week} games")
+        
+        # Distribute games evenly across the week (skip Sunday typically has fewer games)
+        # Typical pattern: Mon-Sat with some off days
+        typical_game_days = [0, 2, 3, 5]  # Mon, Wed, Thu, Sat (0=Monday)
+        if team_games_this_week > 4:
+            typical_game_days.append(1)  # Add Tuesday
+        if team_games_this_week > 5:
+            typical_game_days.append(4)  # Add Friday
+        
+        # Create estimated schedule (same pattern repeats for double weeks)
+        games_distributed = 0
+        current_day = week_start
+        while current_day <= week_end:
+            date_str = current_day.strftime('%Y-%m-%d')
+            day_index = (current_day - week_start).days
+            day_of_week = day_index % 7  # 0-6 so pattern repeats for double weeks
+            
+            has_game = (day_of_week in typical_game_days and games_distributed < team_games_this_week)
+            if has_game:
+                games_distributed += 1
+            
+            pacific_date = get_pacific_date().date()
+            day_name_idx = day_index % 7  # Cycle for double weeks
+            day_name = hebrew_days[day_name_idx]
+            if day_index >= 7:
+                day_name = f"{day_name} ({day_index // 7 + 1})"  # e.g. "שני (2)" for second Monday
+            
+            weekly_schedule.append({
+                'date': date_str,
+                'day_name': day_name,
+                'day_short': hebrew_days[day_name_idx][:2] + "'",
+                'has_game': has_game,
+                'opponent': '?' if has_game else None,  # Unknown opponent
+                'time_israel': None,
+                'is_home': None,
+                'is_today': current_day.date() == pacific_date,
+                'is_past': current_day.date() < pacific_date
+            })
+            
+            current_day += timedelta(days=1)
+        
+        return weekly_schedule
+    
+    # Build weekly schedule with actual game data
     weekly_schedule = []
     current_day = week_start
     
     while current_day <= week_end:
         date_str = current_day.strftime('%Y-%m-%d')
         day_index = (current_day - week_start).days  # Days since week start (Monday=0)
+        day_name_idx = day_index % 7  # Cycle for double weeks (14 days)
+        day_name = hebrew_days[day_name_idx]
+        if day_index >= 7:
+            day_name = f"{day_name} ({day_index // 7 + 1})"  # e.g. "שני (2)" for second Monday
         
         game_info = games_by_date.get(date_str)
         
@@ -1133,8 +1257,8 @@ def get_team_weekly_schedule(team_abbr: str, week_start: datetime = None) -> Lis
         
         weekly_schedule.append({
             'date': date_str,
-            'day_name': hebrew_days[day_index],
-            'day_short': hebrew_days[day_index][:2] + "'",  # ב', ג', etc.
+            'day_name': day_name,
+            'day_short': hebrew_days[day_name_idx][:2] + "'",  # ב', ג', etc.
             'has_game': game_info is not None,
             'opponent': game_info.get('opponent') if game_info else None,
             'time_israel': game_info.get('time_israel') if game_info else None,

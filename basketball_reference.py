@@ -11,7 +11,7 @@ from datetime import datetime
 
 # Cache settings
 CACHE_FILE = 'bbref_stats_cache.json'
-CACHE_DURATION_HOURS = 12  # Refresh cache every 12 hours (stats don't change that often)
+CACHE_DURATION_HOURS = 24  # Refresh cache every 24 hours (stats don't change that often)
 
 # In-memory cache
 _player_stats_cache: Dict[str, Dict] = {}

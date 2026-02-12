@@ -13,6 +13,7 @@ from flask import Flask, render_template, redirect, url_for, request, jsonify, s
 import os
 import json
 import threading
+import time
 
 from yahoo_auth import auth
 from yahoo_api import api
@@ -21,8 +22,13 @@ from config import CATEGORIES
 
 
 def _preload_data():
-    """Pre-load external data in background."""
+    """Pre-load external data and caches for faster first request."""
     try:
+        # Load Yahoo API disk cache into memory (fast - just read JSON)
+        from yahoo_api import load_disk_cache
+        print("[Startup] Loading Yahoo API cache from disk...")
+        load_disk_cache()
+        
         # Pre-load Basketball Reference data
         from basketball_reference import fetch_all_nba_season_averages
         print("[Startup] Pre-loading Basketball Reference data...")
@@ -37,6 +43,48 @@ def _preload_data():
         
     except Exception as e:
         print(f"[Startup] Error pre-loading data: {e}")
+
+
+def _warm_league_caches(leagues: list):
+    """Background: preload cache for all leagues so next pages are instant."""
+    if not leagues:
+        return
+    try:
+        for league in leagues:
+            try:
+                league_key = league.get('league_key')
+                current_week = int(league.get('current_week', 1))
+                api.get_league_settings(league_key)
+                api.get_my_team(league_key)
+                api.get_league_scoreboard(league_key, current_week)
+                api.get_league_standings(league_key)
+                my_team = api.get_my_team(league_key)
+                if my_team:
+                    api.get_team_roster(my_team['team_key'], current_week)
+                    matchup = api.get_matchup(my_team['team_key'], current_week)
+                    if matchup and matchup.get('opponent'):
+                        api.get_team_roster(matchup['opponent']['team_key'], current_week)
+                api.get_category_records(league_key, current_week)
+            except Exception:
+                continue
+        print("[Cache 24/7] League caches warmed")
+    except Exception as e:
+        print(f"[Cache 24/7] Warm error: {e}")
+
+
+def _background_cache_refresh_loop():
+    """Every 30 min refresh BBRef + NBA schedule so cache stays hot 24/7."""
+    while True:
+        time.sleep(30 * 60)
+        try:
+            from basketball_reference import fetch_all_nba_season_averages
+            from nba_schedule import _fetch_and_cache_full_schedule
+            fetch_all_nba_season_averages()
+            _fetch_and_cache_full_schedule()
+            print("[Cache 24/7] Refreshed BBRef + NBA schedule")
+        except Exception as e:
+            print(f"[Cache 24/7] Refresh error: {e}")
+
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
@@ -100,12 +148,15 @@ def dashboard():
     
     try:
         leagues = api.get_user_leagues()
+        # Warm cache in background so next pages (predict, standings) are instant
+        threading.Thread(target=_warm_league_caches, args=(leagues,), daemon=True).start()
         return render_template('dashboard.html', leagues=leagues)
     except Exception as e:
         # Token might be expired, try to refresh
         if auth.refresh_access_token():
             try:
                 leagues = api.get_user_leagues()
+                threading.Thread(target=_warm_league_caches, args=(leagues,), daemon=True).start()
                 return render_template('dashboard.html', leagues=leagues)
             except Exception as e2:
                 return render_template('error.html', error=str(e2))
@@ -154,7 +205,13 @@ def predict(league_key):
         # Use current week if not specified
         selected_week = week if week else current_week
         
-        prediction = predictor.predict_matchup(league_key, selected_week, current_week)
+        # Optional: align total/remaining games to Yahoo (e.g. ?yahoo_remaining=39)
+        yahoo_remaining = request.args.get('yahoo_remaining', type=int)
+        
+        prediction = predictor.predict_matchup(
+            league_key, selected_week, current_week,
+            yahoo_remaining_my_team=yahoo_remaining
+        )
         return render_template('prediction.html', 
                              prediction=prediction,
                              league_key=league_key,
@@ -481,10 +538,15 @@ if __name__ == '__main__':
     print("\nTo stop: Ctrl+C")
     print("="*50 + "\n")
     
-    # Pre-load external data in background
-    # This makes the first prediction much faster
-    preload_thread = threading.Thread(target=_preload_data, daemon=True)
-    preload_thread.start()
+    # Pre-load external data BEFORE starting server
+    print("⏳ Pre-loading data... (this takes ~10-30 seconds on first run)")
+    _preload_data()
+    print("✅ Data pre-loaded! Server is ready.\n")
+    
+    # Keep cache hot 24/7: refresh BBRef + NBA schedule every 30 min (server stays local/private)
+    refresh_thread = threading.Thread(target=_background_cache_refresh_loop, daemon=True)
+    refresh_thread.start()
+    print("🔄 Cache 24/7: background refresh every 30 min (keeps site fast while server runs).\n")
     
     # Run with HTTP (no SSL needed for local development)
     app.run(debug=True, port=5000)
