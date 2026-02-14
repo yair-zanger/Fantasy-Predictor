@@ -126,16 +126,10 @@ def fetch_schedule_from_hashtagbasketball() -> Dict[str, List[str]]:
     today_date = datetime.now().date()
     today = today_date.strftime('%Y-%m-%d')
     
-    # Initialize with HARDCODED_SCHEDULE (contains improved/manual data for double weeks)
-    # This ensures we have data even if cache/scrape returns partial results (e.g. only 7 days of a 14-day week)
-    schedule_data = HARDCODED_SCHEDULE.copy()
-    
-    # Check if we have cached data for today
+    # Check if we have cached data for today (in-memory cache)
     if _hashtag_schedule_date == today and _hashtag_schedule_cache:
-        print(f"[HashtagBB] Using cached schedule ({len(_hashtag_schedule_cache)} dates)")
-        # Merge cache into hardcoded (cache takes precedence if exists)
-        schedule_data.update(_hashtag_schedule_cache)
-        return schedule_data
+        print(f"[HashtagBB] Using in-memory cached schedule ({len(_hashtag_schedule_cache)} dates)")
+        return _hashtag_schedule_cache
     
     # Try to load from disk cache
     if os.path.exists(HASHTAG_CACHE_FILE):
@@ -145,10 +139,8 @@ def fetch_schedule_from_hashtagbasketball() -> Dict[str, List[str]]:
             
             if cache_data.get('date') == today:
                 disk_schedule = cache_data.get('schedule', {})
-                # Merge hardcoded into disk cache (disk takes precedence)
-                schedule_data.update(disk_schedule)
                 
-                _hashtag_schedule_cache = schedule_data
+                _hashtag_schedule_cache = disk_schedule
                 _hashtag_schedule_date = today
                 print(f"[HashtagBB] Loaded schedule from disk cache ({len(_hashtag_schedule_cache)} dates)")
                 return _hashtag_schedule_cache
@@ -167,10 +159,8 @@ def fetch_schedule_from_hashtagbasketball() -> Dict[str, List[str]]:
         
         if response.status_code != 200:
             print(f"[HashtagBB] Failed to fetch: HTTP {response.status_code}")
-            # Use hardcoded schedule as fallback
-            _hashtag_schedule_cache = schedule_data
-            _hashtag_schedule_date = today
-            return _hashtag_schedule_cache
+            # Return empty dict - will fallback to NBA API or HARDCODED in get_teams_playing_on_date
+            return {}
         
         soup = BeautifulSoup(response.text, 'lxml')
         
@@ -183,13 +173,12 @@ def fetch_schedule_from_hashtagbasketball() -> Dict[str, List[str]]:
         
         if not table:
             print("[HashtagBB] Could not find schedule table in HTML")
-            # Return whatever we have (hardcoded)
-            _hashtag_schedule_cache = schedule_data
-            _hashtag_schedule_date = today
-            return _hashtag_schedule_cache
+            # Return empty dict - will fallback to NBA API or HARDCODED
+            return {}
         
-        # Parse the table
-        # Parse the table\r\n        # schedule_data is already initialized with HARDCODED_SCHEDULE\r\n        # We will update it with scraped data (overwriting days we find, keeping days we don't)\r\n        return_data = schedule_data \r\n        
+        # Parse the table - start fresh (don't use HARDCODED_SCHEDULE as base)
+        return_data = {}
+        
         
         # Get header row to extract dates and day names
         thead = table.find('thead')
@@ -197,7 +186,7 @@ def fetch_schedule_from_hashtagbasketball() -> Dict[str, List[str]]:
             thead = table.find('tr')
         
         # Extract column headers (dates with day names)
-        date_columns = []  # Will store: [(day_name, date_str), ...]
+        date_columns = []  # Will store date strings in YYYY-MM-DD format
         if thead:
             header_row = thead.find_all('th') or thead.find_all('td')
             
@@ -205,34 +194,54 @@ def fetch_schedule_from_hashtagbasketball() -> Dict[str, List[str]]:
             now_pacific = get_pacific_time()
             days_since_monday = now_pacific.weekday()  # Monday = 0
             week_start = now_pacific - timedelta(days=days_since_monday)
+            current_year = now_pacific.year
             
             # Skip first 2 columns (Team, Games)
             for i, cell in enumerate(header_row[2:]):
-                day_name = cell.get_text(strip=True).lower()
+                header_text = cell.get_text(strip=True)
                 
-                # Map day name to date
-                day_map = {
-                    'monday': 0, 'mon': 0,
-                    'tuesday': 1, 'tue': 1, 'tues': 1,
-                    'wednesday': 2, 'wed': 2,
-                    'thursday': 3, 'thu': 3, 'thur': 3, 'thurs': 3,
-                    'friday': 4, 'fri': 4,
-                    'saturday': 5, 'sat': 5,
-                    'sunday': 6, 'sun': 6
-                }
+                # Try to extract actual date from header text
+                # Formats: "Mon 2/14", "Monday 2/14", "2/14", "Feb 14", etc.
+                date_str = None
                 
-                day_offset = None
-                for key, offset in day_map.items():
-                    if key in day_name:
-                        day_offset = offset
-                        break
+                # Look for month/day pattern (2/14, 02/14, etc.)
+                import re
+                date_match = re.search(r'(\d{1,2})/(\d{1,2})', header_text)
+                if date_match:
+                    month = int(date_match.group(1))
+                    day = int(date_match.group(2))
+                    try:
+                        parsed_date = datetime(current_year, month, day)
+                        date_str = parsed_date.strftime('%Y-%m-%d')
+                        print(f"[HashtagBB] Parsed date from header '{header_text}': {date_str}")
+                    except:
+                        pass
                 
-                if day_offset is not None:
-                    date = week_start + timedelta(days=day_offset)
-                    date_str = date.strftime('%Y-%m-%d')
-                    date_columns.append(date_str)
-                else:
-                    date_columns.append(None)
+                # If no explicit date found, fallback to day name mapping
+                if not date_str:
+                    day_name = header_text.lower()
+                    day_map = {
+                        'monday': 0, 'mon': 0,
+                        'tuesday': 1, 'tue': 1, 'tues': 1,
+                        'wednesday': 2, 'wed': 2,
+                        'thursday': 3, 'thu': 3, 'thur': 3, 'thurs': 3,
+                        'friday': 4, 'fri': 4,
+                        'saturday': 5, 'sat': 5,
+                        'sunday': 6, 'sun': 6
+                    }
+                    
+                    day_offset = None
+                    for key, offset in day_map.items():
+                        if key in day_name:
+                            day_offset = offset
+                            break
+                    
+                    if day_offset is not None:
+                        date = week_start + timedelta(days=day_offset)
+                        date_str = date.strftime('%Y-%m-%d')
+                        print(f"[HashtagBB] Inferred date from day name '{header_text}': {date_str}")
+                
+                date_columns.append(date_str)
         
         # Parse data rows
         tbody = table.find('tbody') or table
@@ -298,10 +307,15 @@ def fetch_schedule_from_hashtagbasketball() -> Dict[str, List[str]]:
                 # Check for game indicators:
                 # - "@XXX" or "vs XXX" (opponent notation)
                 # - Non-empty cell that's not "-"
+                # BUT EXCLUDE All-Star indicators
                 has_game = False
                 if cell_text and cell_text != '-':
+                    # Exclude All-Star related text
+                    cell_lower = cell_text.lower()
+                    if 'all-star' in cell_lower or 'allstar' in cell_lower or 'asg' in cell_lower:
+                        has_game = False
                     # Check for opponent indicators
-                    if '@' in cell_text or 'vs' in cell_text.lower():
+                    elif '@' in cell_text or 'vs' in cell_text.lower():
                         has_game = True
                     # Or check cell background color/class (often colored when there's a game)
                     elif cell.get('class'):
@@ -312,17 +326,17 @@ def fetch_schedule_from_hashtagbasketball() -> Dict[str, List[str]]:
                         has_game = True
                 
                 if has_game:
-                    if date_str not in schedule_data:
-                        schedule_data[date_str] = []
-                    if team_abbr not in schedule_data[date_str]:
-                        schedule_data[date_str].append(team_abbr)
+                    if date_str not in return_data:
+                        return_data[date_str] = []
+                    if team_abbr not in return_data[date_str]:
+                        return_data[date_str].append(team_abbr)
         
-        if schedule_data:
-            print(f"[HashtagBB] Successfully scraped schedule: {len(schedule_data)} dates, {sum(len(teams) for teams in schedule_data.values())} team-games")
+        if return_data:
+            print(f"[HashtagBB] Successfully scraped schedule: {len(return_data)} dates, {sum(len(teams) for teams in return_data.values())} team-games")
             
             # Ensure all data is JSON-serializable (convert any datetime to strings)
             clean_schedule_data = {}
-            for date_key, teams in schedule_data.items():
+            for date_key, teams in return_data.items():
                 # Ensure date key is string
                 if isinstance(date_key, datetime):
                     date_key = date_key.strftime('%Y-%m-%d')
@@ -346,7 +360,7 @@ def fetch_schedule_from_hashtagbasketball() -> Dict[str, List[str]]:
                 import traceback
                 traceback.print_exc()
             
-            return schedule_data
+            return clean_schedule_data
         else:
             print("[HashtagBB] No schedule data found in table")
             return _hashtag_schedule_cache or {}
@@ -433,7 +447,7 @@ HARDCODED_SCHEDULE = {
     '2026-02-11': ['ATL', 'BOS', 'BKN', 'CHA', 'CHI', 'CLE', 'DEN', 'DET', 'GSW', 'HOU', 'IND', 'LAC', 'MEM', 'MIA', 'MIL', 'MIN', 'NOP', 'NYK', 'OKC', 'ORL', 'PHI', 'PHO', 'POR', 'SAS', 'TOR', 'UTA', 'WAS'],
     '2026-02-12': ['ATL', 'BOS', 'BKN', 'CHA', 'CHI', 'CLE', 'DAL', 'DEN', 'DET', 'GSW', 'HOU', 'IND', 'LAC', 'LAL', 'MIL', 'NYK', 'OKC', 'ORL', 'PHI', 'PHO', 'POR', 'SAS', 'TOR', 'UTA', 'WAS'],
     '2026-02-13': ['ATL', 'BKN', 'CHA', 'CLE', 'DAL', 'DEN', 'IND', 'LAC', 'LAL', 'MEM', 'MIA', 'MIL', 'MIN', 'NOP', 'OKC', 'POR', 'UTA', 'WAS'],
-    '2026-02-14': ['CHI', 'DET', 'HOU', 'MEM', 'MIA', 'NOP', 'NYK', 'ORL', 'PHI', 'PHO', 'SAS', 'ATL', 'BKN', 'BOS', 'CHA', 'CLE', 'DAL', 'DEN', 'GSW', 'IND', 'LAC', 'LAL', 'MIL', 'MIN', 'OKC', 'POR', 'SAC', 'TOR', 'UTA', 'WAS'],
+    '2026-02-14': ['CHI', 'DET', 'HOU', 'MEM', 'MIA', 'NOP', 'NYK', 'ORL', 'PHI', 'PHO', 'SAS'],
     '2026-02-15': ['ATL', 'BOS', 'BKN', 'CHA', 'CHI', 'CLE', 'DAL', 'DEN', 'GSW', 'IND', 'LAC', 'LAL', 'MIL', 'MIN', 'NYK', 'OKC', 'ORL', 'PHI', 'PHO', 'POR', 'TOR', 'WAS'],
     '2026-02-16': [],
     '2026-02-17': [],
@@ -1152,6 +1166,15 @@ def _fetch_and_cache_full_schedule() -> Dict[str, Dict]:
     except Exception as e:
         print(f"[NBA Schedule] Error fetching schedule: {e}")
         return _weekly_schedule_cache or {}
+
+
+def get_full_nba_schedule() -> Dict[str, Dict]:
+    """
+    Get the full NBA schedule from NBA Official API.
+    Returns dict: {date_str: {team_abbr: game_info}}
+    This is the same source used for displaying schedules, ensuring consistency.
+    """
+    return _fetch_and_cache_full_schedule()
 
 
 def get_team_weekly_schedule(team_abbr: str, week_start: datetime = None, week_end: datetime = None) -> List[Dict]:

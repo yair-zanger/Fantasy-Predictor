@@ -564,9 +564,15 @@
     <div class="projection-notice">
         {% if selected_week == current_week %}
         🔮 חיזוי: כך הטבלה תיראה אחרי סיום השבוע הנוכחי (שבוע {{ selected_week }})
+        <br><small>* החיזוי מבוסס על התוצאות הצפויות של כל המאצ'אפים השבוע</small>
         {% else %}
-        🔮 חיזוי: כך הטבלה תיראה אחרי סיום שבוע {{ selected_week }} (כולל חיזוי משבוע {{ current_week }} עד {{ selected_week }})
+        🔮 חיזוי: כך הטבלה תיראה אחרי סיום שבוע {{ selected_week }}
+        <br><small>* החיזוי כולל את כל המאצ'אפים משבוע {{ current_week }} עד {{ selected_week }}</small>
         {% endif %}
+    </div>
+    {% else %}
+    <div class="projection-notice" style="background: rgba(46, 204, 113, 0.1); border-color: #2ecc71;">
+        ✅ טבלה היסטורית מיאהו - שבוע {{ selected_week }} (Matchup W-L בפועל)
     </div>
     {% endif %}
     
@@ -610,20 +616,30 @@
             </thead>
             <tbody>
                 {% for team in standings %}
-                {% set cat_record = category_records.get(team.team_key, {'cat_wins': 0, 'cat_losses': 0, 'cat_ties': 0}) %}
-                {% set cat_wins = cat_record.cat_wins %}
-                {% set cat_losses = cat_record.cat_losses %}
-                {% set cat_ties = cat_record.cat_ties %}
-                {% set total_cats = cat_wins + cat_losses + cat_ties %}
-                {% set cat_pct = (cat_wins / total_cats * 100) if total_cats > 0 else 0 %}
+                {% if is_projection and category_records %}
+                    {# Future week projection: show category wins #}
+                    {% set cat_record = category_records.get(team.team_key, {'cat_wins': 0, 'cat_losses': 0, 'cat_ties': 0}) %}
+                    {% set display_wins = cat_record.cat_wins %}
+                    {% set display_losses = cat_record.cat_losses %}
+                    {% set display_ties = cat_record.cat_ties %}
+                    {% set total = display_wins + display_losses + display_ties %}
+                    {% set display_pct = (display_wins / total * 100) if total > 0 else 0 %}
+                {% else %}
+                    {# Current/past week: show actual matchup wins from Yahoo #}
+                    {% set display_wins = team.wins %}
+                    {% set display_losses = team.losses %}
+                    {% set display_ties = team.ties %}
+                    {% set total = display_wins + display_losses + display_ties %}
+                    {% set display_pct = team.win_pct %}
+                {% endif %}
                 <tr class="{% if team.team_key == my_team_key %}my-team{% endif %} {% if loop.index == 8 %}playoff-line{% endif %}">
                     <td class="rank-cell rank-{{ team.rank }}">{{ team.rank }}</td>
                     <td class="team-cell">
                         <div class="team-name">{{ team.name }}</div>
                         <div class="team-manager">{{ team.manager }}</div>
                     </td>
-                    <td class="record-cell">{{ cat_wins }}-{{ cat_ties }}-{{ cat_losses }}</td>
-                    <td class="win-pct {% if cat_pct < 50 %}low{% endif %}">{{ "%.1f"|format(cat_pct) }}%</td>
+                    <td class="record-cell">{{ display_wins }}-{{ display_ties }}-{{ display_losses }}</td>
+                    <td class="win-pct {% if display_pct < 50 %}low{% endif %}">{{ "%.1f"|format(display_pct) }}%</td>
                 </tr>
                 {% endfor %}
             </tbody>

@@ -252,35 +252,49 @@ def standings(league_key):
         current_week = int(league_info['current_week']) if league_info else 1
         start_week = int(league_info['start_week']) if league_info else 1
         end_week = int(league_info['end_week']) if league_info else 24
+        playoff_start_week = int(league_info['playoff_start_week']) if league_info and league_info.get('playoff_start_week') else None
         
         # Use current week if not specified
         selected_week = week if week else current_week
         
-        # Get current actual standings from Yahoo
+        # Check if this is a playoff week - if so, show playoff screen instead of standings
+        if playoff_start_week and selected_week >= playoff_start_week:
+            return render_template('playoff_standings.html',
+                                 league_key=league_key,
+                                 league_name=league_name,
+                                 selected_week=selected_week,
+                                 current_week=current_week,
+                                 start_week=start_week,
+                                 end_week=end_week,
+                                 playoff_start_week=playoff_start_week,
+                                 message=f"שבוע {selected_week} הוא שבוע פלייאוף - הטבלה הרגילה כבר לא רלוונטית")
+        
+        # Get current actual standings from Yahoo (these are matchup wins/losses, not category wins)
         standings_data = api.get_league_standings(league_key)
         
         # Get my team to highlight
         my_team = api.get_my_team(league_key)
         my_team_key = my_team['team_key'] if my_team else None
         
-        # Calculate category records based on selected week
+        # Determine if this is a projection (current or future week) or historical data
         is_projection = selected_week >= current_week
         
-        if selected_week < current_week:
-            # Past week: show actual records up to and including selected week
-            category_records = api.get_category_records(league_key, selected_week + 1)
-        else:
-            # Current or future week: show actual records + predictions
-            # Get actual records up to current week (before current week started)
+        # For past weeks: show actual Yahoo standings (matchup W-L)
+        # For current and future weeks: project based on category records
+        category_records = None
+        
+        if is_projection:
+            # Current/future week: calculate projected category records
+            # Get actual records up to current week (past weeks only)
             category_records = api.get_category_records(league_key, current_week)
+            print(f"[Standings] Projecting from week {current_week} to {selected_week}")
             # Add predictions from current_week to selected_week
             category_records = project_future_category_records(
                 league_key, category_records, current_week, selected_week
             )
-        
-        # Re-rank teams based on projected category records
-        if is_projection and category_records:
+            # Re-rank teams based on projected category records
             standings_data = rerank_standings(standings_data, category_records)
+            print(f"[Standings] Re-ranked {len(standings_data)} teams based on projections")
         
         return render_template('standings.html',
                              standings=standings_data,
@@ -393,6 +407,7 @@ def predict_all(league_key):
         current_week = int(league_info['current_week']) if league_info else 1
         start_week = int(league_info['start_week']) if league_info else 1
         end_week = int(league_info['end_week']) if league_info else 24
+        playoff_start_week = int(league_info['playoff_start_week']) if league_info and league_info.get('playoff_start_week') else None
         league_name = league_info['name'] if league_info else 'League'
         
         # Use current week if not specified
@@ -414,7 +429,18 @@ def predict_all(league_key):
                              start_week=start_week,
                              end_week=end_week,
                              selected_week=selected_week,
+                             playoff_start_week=playoff_start_week,
                              my_team_key=my_team_key)
+    except PlayoffWeekError as e:
+        # Playoff week - show friendly message
+        return render_template('playoff_all.html',
+                             league_key=league_key,
+                             selected_week=selected_week,
+                             current_week=current_week,
+                             start_week=start_week,
+                             end_week=end_week,
+                             playoff_start_week=playoff_start_week,
+                             message=e.message)
     except Exception as e:
         import traceback
         traceback.print_exc()

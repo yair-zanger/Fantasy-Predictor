@@ -27,7 +27,7 @@ CACHE_TTL = {
     'roster': 3600,      # 1 hour - roster can change (trades, adds/drops)
     'matchup': 1800,     # 30 minutes - matchup stats update during games
     'scoreboard': 86400, # 24 hours - scoreboard (past weeks don't change)
-    'standings': 3600,   # 1 hour - standings
+    'standings': 600,    # 10 minutes - standings update frequently during the week
     'player_stats': 3600,# 1 hour - player stats are relatively stable
     'cat_records': 604800, # 7 days - category records for past weeks NEVER change
     'transactions': 1800,  # 30 min - transactions can change during the week

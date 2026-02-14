@@ -35,7 +35,7 @@ from nba_schedule import (
     schedule, get_team_games_this_week, get_teams_playing_on_date,
     get_team_games_remaining_this_week, get_week_dates_range,
     get_todays_games, get_team_game_today, get_team_weekly_schedule,
-    get_pacific_time, get_pacific_date
+    get_pacific_time, get_pacific_date, get_full_nba_schedule
 )
 from config import CATEGORIES, NEGATIVE_CATEGORIES
 from basketball_reference import (
@@ -446,6 +446,13 @@ class FantasyPredictor:
         matchups = self.api.get_league_scoreboard(league_key, week)
         
         if not matchups:
+            # Check if this is a playoff week without matchups set yet
+            leagues = self.api.get_user_leagues()
+            league_info = next((l for l in leagues if l['league_key'] == league_key), None)
+            if league_info:
+                playoff_start_week = int(league_info.get('playoff_start_week', 0)) if league_info.get('playoff_start_week') else None
+                if playoff_start_week and week and week >= playoff_start_week:
+                    raise PlayoffWeekError(week, f"שבוע {week} הוא שבוע פלייאוף - הזיווגים עדיין לא נקבעו")
             return []
         
         week_num = int(matchups[0].get('week', 0)) if matchups else 0
@@ -945,7 +952,7 @@ class FantasyPredictor:
             il_placements: Optional[Dict[str, datetime]] = None,
             il_removals: Optional[Dict[str, datetime]] = None
         ) -> Tuple[Dict[str, float], Dict[str, float], int]:
-            """Calculate stats for a list of days using hardcoded schedule data.
+            """Calculate stats for a list of days using NBA Official API schedule data.
             Returns: (stats, fg_data, games_counted)
             
             Args:
@@ -961,18 +968,25 @@ class FantasyPredictor:
             il_placements = il_placements or {}
             il_removals = il_removals or {}
             
+            # Fetch full NBA schedule once (same source as visual schedule display)
+            full_schedule = get_full_nba_schedule()
+            print(f"[DEBUG] Using NBA Official API schedule with {len(full_schedule)} dates")
+            
             for day in days_list:
-                # Get teams playing on this day (from hardcoded schedule)
-                teams_playing, has_data = get_teams_playing_on_date(day)
+                # Get teams playing on this day from NBA Official API
+                day_str = day.strftime('%Y-%m-%d')
                 
-                # If we don't have data for this day, skip it (don't estimate)
-                if not has_data:
-                    print(f"[DEBUG] No schedule data for {day.strftime('%Y-%m-%d')}, skipping day (no estimation)")
+                # Check if we have data for this day
+                if day_str not in full_schedule:
+                    print(f"[DEBUG] No schedule data for {day_str}, skipping day (no estimation)")
                     continue
                 
+                # Get teams from the day's schedule
+                teams_playing = list(full_schedule[day_str].keys()) if full_schedule[day_str] else []
+                
                 # If we have data but no games (e.g., All-Star break), count 0 games (skip day)
-                if has_data and not teams_playing:
-                    print(f"[DEBUG] Confirmed no games on {day.strftime('%Y-%m-%d')} (e.g., All-Star break)")
+                if not teams_playing:
+                    print(f"[DEBUG] Confirmed no games on {day_str} (e.g., All-Star break)")
                     continue
                 
                 # Filter to eligible players for this day (including bench; optionally IL for past days)
@@ -1159,6 +1173,10 @@ class FantasyPredictor:
         print(f"[DEBUG] Past days games counted (calculated from current roster): {past_games_counted_calc}")
 
         # Calculate stats for remaining days (projections)
+        print(f"[DEBUG] ========== REMAINING GAMES CALCULATION ==========")
+        print(f"[DEBUG] Remaining days: {len(remaining_days)} days")
+        if remaining_days:
+            print(f"[DEBUG] From: {remaining_days[0].strftime('%Y-%m-%d')} to {remaining_days[-1].strftime('%Y-%m-%d')}")
         remaining_stats, remaining_fg_data, remaining_games_counted = calculate_daily_stats(
             remaining_days, 
             include_il_players=False,
@@ -1167,6 +1185,7 @@ class FantasyPredictor:
         )
         print(f"[DEBUG] Remaining days stats (projected): {remaining_stats}")
         print(f"[DEBUG] Remaining days games (projected, Yahoo logic): {remaining_games_counted}")
+        print(f"[DEBUG] ==================================================")
 
         # Calculate actual games played based on weekly schedule for past days
         # Count games from weekly_schedule for each player in past days

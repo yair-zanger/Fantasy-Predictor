@@ -42,6 +42,8 @@
         margin-bottom: 1.5rem;
         opacity: 0;
         animation: fadeIn 0.5s ease-out 0.1s forwards;
+        position: relative;
+        z-index: 10000;
     }
     
     .week-nav-btn {
@@ -80,6 +82,128 @@
         font-weight: 600;
         min-width: 120px;
         text-align: center;
+    }
+    
+    .week-dropdown-container {
+        position: relative;
+        z-index: 10001;
+    }
+    
+    .week-dropdown-btn {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        background: var(--bg-card);
+        border: 2px solid var(--accent-orange);
+        border-radius: 12px;
+        padding: 0.75rem 1.25rem;
+        color: var(--text-primary);
+        font-size: 1rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s;
+        min-width: 180px;
+        justify-content: center;
+    }
+    
+    .week-dropdown-btn:hover {
+        background: rgba(255, 107, 53, 0.1);
+    }
+    
+    .week-dropdown-btn .week-label {
+        color: var(--text-secondary);
+        font-weight: 400;
+    }
+    
+    .week-dropdown-btn .current-indicator {
+        background: var(--accent-green);
+        color: white;
+        font-size: 0.7rem;
+        padding: 0.15rem 0.5rem;
+        border-radius: 10px;
+        margin-right: 0.5rem;
+    }
+    
+    .week-dropdown {
+        position: absolute;
+        top: calc(100% + 8px);
+        left: 50%;
+        transform: translateX(-50%);
+        background: var(--bg-card);
+        border: 2px solid var(--accent-orange);
+        border-radius: 12px;
+        padding: 0.5rem;
+        min-width: 200px;
+        max-height: 400px;
+        overflow-y: auto;
+        box-shadow: 0 15px 50px rgba(0, 0, 0, 0.8);
+        display: none;
+        z-index: 10002;
+    }
+    
+    .week-dropdown.show {
+        display: block;
+        animation: fadeIn 0.2s ease-out;
+    }
+    
+    .week-option {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0.75rem 1rem;
+        border-radius: 8px;
+        color: var(--text-primary);
+        text-decoration: none;
+        transition: background 0.2s;
+    }
+    
+    .week-option:hover {
+        background: var(--accent-orange);
+        color: white;
+    }
+    
+    .week-option.active {
+        background: rgba(255, 107, 53, 0.2);
+        border: 1px solid var(--accent-orange);
+    }
+    
+    .week-option.current-week {
+        font-weight: 600;
+    }
+    
+    .week-option.past-week {
+        opacity: 0.7;
+    }
+    
+    .week-option .badge {
+        background: var(--accent-green);
+        color: white;
+        font-size: 0.65rem;
+        padding: 0.2rem 0.5rem;
+        border-radius: 10px;
+    }
+    
+    .week-option .past-badge {
+        background: var(--text-muted);
+    }
+    
+    .week-option .badge.playoff-badge {
+        background: var(--accent-red);
+        color: white;
+    }
+    
+    .week-option.active .badge.playoff-badge {
+        background: white;
+        color: var(--accent-red);
+    }
+    
+    .playoff-indicator {
+        background: var(--accent-red);
+        color: white;
+        font-size: 0.7rem;
+        padding: 0.15rem 0.5rem;
+        border-radius: 10px;
+        margin-right: 0.5rem;
     }
     
     /* Side Menu */
@@ -464,11 +588,35 @@
         <span class="week-nav-btn disabled">→</span>
         {% endif %}
         
-        <div class="week-current">
-            שבוע {{ selected_week }}
-            {% if selected_week == current_week %}
-            <span style="color: var(--accent-green); font-size: 0.8rem;"> (נוכחי)</span>
-            {% endif %}
+        <div class="week-dropdown-container">
+            <button class="week-dropdown-btn" onclick="toggleWeekDropdown()">
+                <span class="week-label">שבוע</span>
+                <span>{{ selected_week }}</span>
+                {% if selected_week == current_week %}
+                <span class="current-indicator">נוכחי</span>
+                {% endif %}
+                {% if playoff_start_week and selected_week >= playoff_start_week %}
+                <span class="playoff-indicator">פלייאוף</span>
+                {% endif %}
+                <span style="font-size: 0.75rem;">▼</span>
+            </button>
+            
+            <div class="week-dropdown" id="weekDropdown">
+                {% for week_num in range(start_week, end_week + 1) %}
+                <a href="{{ url_for('predict_all', league_key=league_key, week=week_num) }}" 
+                   class="week-option {% if week_num == selected_week %}active{% endif %} {% if week_num == current_week %}current-week{% endif %} {% if week_num < current_week %}past-week{% endif %}">
+                    <span>שבוע {{ week_num }}</span>
+                    {% if week_num < current_week %}
+                    <span class="badge past-badge">הסתיים</span>
+                    {% elif week_num == current_week %}
+                    <span class="badge">נוכחי</span>
+                    {% endif %}
+                    {% if playoff_start_week and week_num >= playoff_start_week %}
+                    <span class="badge playoff-badge">פלייאוף</span>
+                    {% endif %}
+                </a>
+                {% endfor %}
+            </div>
         </div>
         
         {% if selected_week < end_week %}
@@ -624,5 +772,30 @@ function toggleCategories(btn) {
     breakdown.classList.toggle('show');
     btn.textContent = breakdown.classList.contains('show') ? '📊 הסתר קטגוריות' : '📊 הצג קטגוריות';
 }
+
+function toggleWeekDropdown() {
+    const dropdown = document.getElementById('weekDropdown');
+    dropdown.classList.toggle('show');
+}
+
+// Close dropdown when clicking outside
+document.addEventListener('click', function(event) {
+    const dropdown = document.getElementById('weekDropdown');
+    const button = event.target.closest('.week-dropdown-btn');
+    
+    if (!button && dropdown.classList.contains('show')) {
+        dropdown.classList.remove('show');
+    }
+});
+
+// Keyboard navigation
+document.addEventListener('keydown', function(event) {
+    if (event.key === 'Escape') {
+        const dropdown = document.getElementById('weekDropdown');
+        if (dropdown) {
+            dropdown.classList.remove('show');
+        }
+    }
+});
 </script>
 {% endblock %}
