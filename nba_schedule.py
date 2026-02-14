@@ -435,13 +435,20 @@ HARDCODED_SCHEDULE = {
     '2026-02-10': ['ATL', 'CLE', 'CHA', 'HOU', 'LAC', 'MEM', 'MIN', 'NOP', 'NYK', 'OKC', 'SAC', 'SAS'],
     '2026-02-11': ['BKN', 'MIA', 'BOS', 'DEN', 'CHI', 'IND', 'DAL', 'PHI', 'DET', 'ORL', 'GSW', 'LAL', 'MIL', 'TOR', 'PHO', 'UTA', 'POR', 'WAS'],
     '2026-02-12': ['ATL', 'CLE', 'CHA', 'MEM', 'HOU', 'NOP', 'LAC', 'SAS', 'MIN', 'OKC', 'NYK', 'SAC'],
-    '2026-02-13': ['BKN', 'IND', 'BOS', 'MIA', 'CHI', 'PHI', 'DAL', 'MIL', 'DEN', 'GSW', 'DET', 'TOR', 'LAL', 'UTA', 'ORL', 'WAS', 'PHO', 'POR'],
-    '2026-02-14': ['ATL', 'OKC', 'CHA', 'CLE', 'HOU', 'SAS', 'LAC', 'SAC', 'MEM', 'NOP', 'MIN', 'NYK'],
-    '2026-02-15': ['BKN', 'MIA', 'BOS', 'DET', 'CHI', 'PHO', 'DAL', 'GSW', 'DEN', 'POR', 'IND', 'MIL', 'LAL', 'ORL', 'PHI', 'TOR', 'UTA', 'WAS'],
     
-    # All-Star Weekend: Feb 16-17 (no regular season games)
-    # Post All-Star: Feb 18-22 (games resume, will be fetched from NBA API in real-time)
-    # Note: Most teams will play additional games Feb 18-22 to complete the double week
+    # All-Star Weekend: Feb 13-18 (no regular season games, only All-Star events)
+    '2026-02-13': [],  # All-Star Friday (Celebrity Game, Rising Stars - not regular season)
+    '2026-02-14': [],  # All-Star Saturday (Skills, 3-Point, Dunk - not regular season)
+    '2026-02-15': [],  # All-Star Sunday (All-Star Game - not regular season)
+    '2026-02-16': [],  # All-Star Weekend (no games)
+    '2026-02-17': [],  # All-Star Weekend (no games)
+    '2026-02-18': [],  # All-Star Weekend (no games)
+    
+    # Post All-Star: Feb 19-22 (games resume)
+    '2026-02-19': ['MIL', 'HOU', 'BRK', 'ATL', 'IND', 'DET', 'TOR', 'PHO', 'BOS', 'ORL', 'DEN'],
+    '2026-02-20': ['MIL', 'CLE', 'UTA', 'IND', 'MIA', 'DAL', 'BRK', 'LAC', 'DEN'],
+    '2026-02-21': ['MIL', 'ORL', 'PHI', 'DET', 'MEM', 'SAC', 'HOU'],
+    '2026-02-22': ['MIL', 'CLE', 'BRK', 'DEN', 'TOR', 'DAL', 'CHO', 'BOS', 'PHI', 'NYK', 'POR', 'ORL']
     
     # Week 18: Feb 23 - Mar 1 (Post All-Star, typically 3-4 games/team)
 }
@@ -744,11 +751,16 @@ def get_all_games_this_week() -> Dict[str, int]:
     return schedule.get_all_teams_games_count()
 
 
-def get_teams_playing_on_date(date: datetime) -> List[str]:
+def get_teams_playing_on_date(date: datetime) -> Tuple[List[str], bool]:
     """Get list of team abbreviations playing on a specific date.
     
+    Returns:
+        tuple: (teams_list, has_data)
+            - teams_list: List of team abbreviations playing
+            - has_data: True if we have reliable data, False if no data available
+    
     First checks hardcoded schedule, then scraped schedule from hashtagbasketball.com,
-    then falls back to NBA API, and finally returns estimated teams if no data found.
+    then falls back to NBA API. If no data found, returns ([], False).
     """
     target_date = date.strftime('%Y-%m-%d')
     
@@ -756,14 +768,14 @@ def get_teams_playing_on_date(date: datetime) -> List[str]:
     if target_date in HARDCODED_SCHEDULE:
         teams = HARDCODED_SCHEDULE[target_date]
         print(f"[DEBUG] Using hardcoded schedule for {target_date}: {len(teams)} teams")
-        return teams
+        return teams, True  # We have reliable data
     
     # Second, check scraped schedule (current week)
     hashtag_schedule = fetch_schedule_from_hashtagbasketball()
     if target_date in hashtag_schedule:
         teams = hashtag_schedule[target_date]
         print(f"[DEBUG] Using scraped schedule for {target_date}: {len(teams)} teams")
-        return teams
+        return teams, True  # We have reliable data
     
     # Third, try NBA API
     try:
@@ -790,18 +802,17 @@ def get_teams_playing_on_date(date: datetime) -> List[str]:
                             teams_playing.append(away_team)
                     break
             
-            if teams_playing:
+            if teams_playing or date_str == target_date:
+                # If we found the date in NBA API (even if no games), we have data
                 print(f"[DEBUG] Using NBA API for {target_date}: {len(teams_playing)} teams")
-                return teams_playing
+                return teams_playing, True
         
     except Exception as e:
         print(f"[DEBUG] NBA API error for {target_date}: {e}")
     
-    # Last resort: estimate based on typical NBA schedule
-    # NBA typically has ~10-15 games per day (20-30 teams playing)
-    # For future dates without data, return empty list and let the weekly schedule handle it
-    print(f"[DEBUG] No game data found for {target_date}, will use weekly averages")
-    return []
+    # No data available for this date
+    print(f"[DEBUG] No game data found for {target_date}")
+    return [], False  # We don't have reliable data
 
 
 def get_team_games_remaining_this_week(team_abbr: str) -> int:

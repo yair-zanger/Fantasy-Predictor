@@ -7,7 +7,7 @@ import json
 import os
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Tuple
 from datetime import datetime, timedelta
 from functools import wraps
 from yahoo_auth import auth
@@ -310,6 +310,33 @@ class YahooFantasyAPI:
         _set_cached(cache_key, players, CACHE_TTL['roster'])
         return players
     
+    def get_team_stats(self, team_key: str, week: int = None) -> Dict:
+        """Get team stats for a specific week (including Games Played)"""
+        cache_key = f"team_stats:{team_key}:{week or 'current'}"
+        cached = _get_cached(cache_key)
+        if cached is not None:
+            return cached
+        
+        # Request team stats for specific week
+        endpoint = f"team/{team_key}/stats"
+        if week:
+            endpoint += f";type=week;week={week}"
+        
+        root = self._make_request(endpoint)
+        
+        stats = {}
+        for stat in root.findall('.//yh:stat', NS):
+            stat_id = self._get_text(stat, 'yh:stat_id')
+            value = self._get_text(stat, 'yh:value')
+            parsed = self._parse_stat_value(value)
+            stats[stat_id] = parsed
+            # Also store with integer key for easier access
+            if stat_id is not None and stat_id.isdigit():
+                stats[int(stat_id)] = parsed
+        
+        _set_cached(cache_key, stats, CACHE_TTL['matchup'])
+        return stats
+    
     def get_matchup(self, team_key: str, week: int = None) -> Dict:
         """Get current matchup for a team"""
         cache_key = f"matchup:{team_key}:{week or 'current'}"
@@ -317,9 +344,12 @@ class YahooFantasyAPI:
         if cached is not None:
             return cached
         
+        # Request matchup WITH team stats (including Games Played stat_id=0)
         endpoint = f"team/{team_key}/matchups"
         if week:
             endpoint += f";weeks={week}"
+        # Add ;type=week to get weekly stats (including GP)
+        endpoint += ";type=week"
         
         root = self._make_request(endpoint)
         
@@ -371,9 +401,12 @@ class YahooFantasyAPI:
             print(f"[Yahoo API] Using cached scoreboard for {league_key}")
             return cached
         
+        # Request scoreboard WITH team stats (including Games Played stat_id=0)
         endpoint = f"league/{league_key}/scoreboard"
         if week:
             endpoint += f";week={week}"
+        # Add ;type=week to get weekly stats (including GP)
+        endpoint += ";type=week"
         
         root = self._make_request(endpoint)
         
@@ -531,6 +564,128 @@ class YahooFantasyAPI:
         if acquisition_dates:
             print(f"[Yahoo API] Acquisition dates for team: {acquisition_dates}")
         return acquisition_dates
+    
+    def get_il_history_for_team(
+        self, league_key: str, team_key: str,
+        week_start_date: Optional[datetime] = None, week_end_date: Optional[datetime] = None
+    ) -> Tuple[Dict[str, datetime], Dict[str, datetime]]:
+        """Get IL placement and removal dates for players during the given week.
+        
+        Returns:
+            tuple: (il_placements, il_removals)
+                - il_placements: {player_key: placement_date} when player was moved to IL
+                - il_removals: {player_key: removal_date} when player was removed from IL
+        
+        Note: Yahoo API doesn't always provide IL transactions explicitly. This function
+        attempts to extract IL moves from roster changes and transactions.
+        """
+        cache_key = f"il_history:{league_key}:{team_key}:{week_start_date.date() if week_start_date else 'none'}:{week_end_date.date() if week_end_date else 'none'}"
+        cached = _get_cached(cache_key)
+        if cached is not None:
+            # Restore datetime from ISO string
+            placements = {k: datetime.fromisoformat(v) for k, v in cached.get('placements', {}).items()}
+            removals = {k: datetime.fromisoformat(v) for k, v in cached.get('removals', {}).items()}
+            return placements, removals
+        
+        il_placements: Dict[str, datetime] = {}
+        il_removals: Dict[str, datetime] = {}
+        week_start = (week_start_date.date() if week_start_date else None)
+        week_end = (week_end_date.date() if week_end_date else None)
+        
+        # Approach: Get current roster and check who is on IL
+        # Then, for past days in the week, assume they were placed on IL at start of week
+        # This is a simplified approach since Yahoo API doesn't always expose IL transaction history
+        
+        try:
+            # Get current roster to see who is currently on IL
+            roster = self.get_team_roster(league_key, team_key)
+            current_il_players = set()
+            
+            for player in roster:
+                roster_pos = player.get('selected_position', {}).get('position', '')
+                if roster_pos in ['IL', 'IL+']:
+                    current_il_players.add(player.get('player_key', ''))
+            
+            # Try to get transactions to find IL moves
+            try:
+                endpoint = f"league/{league_key}/transactions"
+                root = self._make_request(endpoint)
+                
+                for txn in root.findall('.//yh:transaction', NS):
+                    txn_type = self._get_text(txn, 'yh:type')
+                    ts = self._get_text(txn, 'yh:timestamp')
+                    if not ts:
+                        continue
+                    try:
+                        txn_dt = datetime.utcfromtimestamp(int(ts))
+                    except (TypeError, ValueError, OSError):
+                        continue
+                    txn_date = txn_dt.date()
+                    if week_start is not None and txn_date < week_start:
+                        continue
+                    if week_end is not None and txn_date > week_end:
+                        continue
+                    
+                    # Look for roster position changes
+                    # Yahoo may represent IL moves as part of roster transactions
+                    txn_players = (
+                        txn.findall('.//yh:transaction_players/yh:player', NS) or
+                        txn.findall('.//yh:players/yh:player', NS) or
+                        txn.findall('.//yh:player', NS)
+                    )
+                    
+                    for txn_player in txn_players:
+                        player_key = self._get_text(txn_player, 'yh:player_key') or self._get_text(txn_player, './/yh:player_key')
+                        if not player_key:
+                            p = txn_player.find('yh:player_key', NS) or txn_player.find('.//yh:player_key', NS)
+                            if p is not None and p.text:
+                                player_key = p.text
+                        
+                        if not player_key:
+                            continue
+                        
+                        # Check for IL designation in transaction
+                        # Yahoo sometimes includes destination_type or similar fields
+                        dest_type = self._get_text(txn_player, 'yh:destination_type')
+                        src_type = self._get_text(txn_player, 'yh:source_type')
+                        
+                        txn_date_dt = datetime.combine(txn_date, datetime.min.time())
+                        
+                        # If destination is IL, this is a placement
+                        if dest_type and 'IL' in dest_type.upper():
+                            if player_key not in il_placements or txn_date_dt < il_placements[player_key]:
+                                il_placements[player_key] = txn_date_dt
+                        
+                        # If source is IL, this is a removal
+                        if src_type and 'IL' in src_type.upper():
+                            if player_key not in il_removals or txn_date_dt < il_removals[player_key]:
+                                il_removals[player_key] = txn_date_dt
+            
+            except Exception as e:
+                print(f"[Yahoo API] Could not parse IL transactions: {e}")
+            
+            # Fallback: If we found players currently on IL but no placement date,
+            # conservatively assume they were placed at the start of the week
+            if week_start and current_il_players:
+                for player_key in current_il_players:
+                    if player_key not in il_placements:
+                        # Default to start of week (conservative - don't count any games this week)
+                        il_placements[player_key] = datetime.combine(week_start, datetime.min.time())
+        
+        except Exception as e:
+            print(f"[Yahoo API] Could not fetch IL history: {e}")
+        
+        # Cache as ISO strings
+        cache_data = {
+            'placements': {k: v.isoformat() for k, v in il_placements.items()},
+            'removals': {k: v.isoformat() for k, v in il_removals.items()}
+        }
+        _set_cached(cache_key, cache_data, CACHE_TTL['transactions'])
+        
+        if il_placements or il_removals:
+            print(f"[Yahoo API] IL history for team: placements={il_placements}, removals={il_removals}")
+        
+        return il_placements, il_removals
     
     def get_category_records(self, league_key: str, current_week: int) -> Dict[str, Dict]:
         """Calculate category records (wins/losses/ties per category) for all teams.

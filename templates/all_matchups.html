@@ -527,7 +527,7 @@
                             {{ matchup.team1.name }}
                         </div>
                         <div class="team-manager">{{ matchup.team1.manager }}</div>
-                        <div class="team-games">🏀 {{ matchup.team1.games_played }}/{{ matchup.team1.games_total }} משחקים</div>
+                        <div class="team-games">🏀 {{ matchup.team1.remaining_games }} משחקים נותרו</div>
                     </div>
                     <div class="team-wins {% if matchup.team1.wins > matchup.team2.wins %}winning{% elif matchup.team1.wins < matchup.team2.wins %}losing{% else %}tie{% endif %}">
                         {{ matchup.team1.wins }}
@@ -547,7 +547,7 @@
                             {{ matchup.team2.name }}
                         </div>
                         <div class="team-manager">{{ matchup.team2.manager }}</div>
-                        <div class="team-games">🏀 {{ matchup.team2.games_played }}/{{ matchup.team2.games_total }} משחקים</div>
+                        <div class="team-games">🏀 {{ matchup.team2.remaining_games }} משחקים נותרו</div>
                     </div>
                     <div class="team-wins {% if matchup.team2.wins > matchup.team1.wins %}winning{% elif matchup.team2.wins < matchup.team1.wins %}losing{% else %}tie{% endif %}">
                         {{ matchup.team2.wins }}

@@ -1000,7 +1000,7 @@
             <div class="team-card-header my-team">
                 <div>
                     <span>{{ prediction.my_team.team_name }}</span>
-                    <div class="team-games-summary">🏀 {{ prediction.my_team.games_played }}/{{ prediction.my_team.games_total }} משחקים שוחקו</div>
+                    <div class="team-games-summary">🏀 {{ prediction.my_team.remaining_games }} משחקים נותרו</div>
                 </div>
                 <span style="color: var(--accent-orange);">הקבוצה שלי</span>
             </div>
@@ -1052,7 +1052,7 @@
             <div class="team-card-header opponent">
                 <div>
                     <span>{{ prediction.opponent.team_name }}</span>
-                    <div class="team-games-summary">🏀 {{ prediction.opponent.games_played }}/{{ prediction.opponent.games_total }} משחקים שוחקו</div>
+                    <div class="team-games-summary">🏀 {{ prediction.opponent.remaining_games }} משחקים נותרו</div>
                 </div>
                 <span style="color: var(--accent-blue);">יריב</span>
             </div>
