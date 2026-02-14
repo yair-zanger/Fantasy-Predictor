@@ -398,59 +398,34 @@ CACHE_FILE = 'nba_schedule_cache.json'
 # 
 # Week 15: Jan 26 - Feb 1, 2026
 HARDCODED_SCHEDULE = {
-    # Monday Jan 26, 2026
     '2026-01-26': ['ATL', 'IND', 'BOS', 'POR', 'CHI', 'LAL', 'CLE', 'ORL', 'GSW', 'MIN', 'HOU', 'MEM', 'PHI', 'CHA'],
-    # Tuesday Jan 27, 2026
     '2026-01-27': ['BKN', 'PHO', 'DEN', 'DET', 'LAC', 'UTA', 'MIL', 'PHI', 'NOP', 'OKC', 'NYK', 'SAC', 'POR', 'WAS'],
-    # Wednesday Jan 28, 2026
     '2026-01-28': ['ATL', 'BOS', 'CHA', 'MEM', 'CHI', 'IND', 'CLE', 'LAL', 'DAL', 'MIN', 'GSW', 'UTA', 'HOU', 'SAS', 'MIA', 'ORL', 'NYK', 'TOR'],
-    # Thursday Jan 29, 2026
     '2026-01-29': ['ATL', 'HOU', 'BKN', 'DEN', 'CHA', 'DAL', 'DET', 'PHO', 'MIA', 'CHI', 'MIL', 'WAS', 'MIN', 'OKC', 'PHI', 'SAC'],
-    # Friday Jan 30, 2026
     '2026-01-30': ['BKN', 'UTA', 'BOS', 'SAC', 'CLE', 'PHO', 'DEN', 'LAC', 'DET', 'GSW', 'LAL', 'WAS', 'MEM', 'NOP', 'NYK', 'POR', 'ORL', 'TOR'],
-    # Saturday Jan 31, 2026
     '2026-01-31': ['ATL', 'IND', 'CHA', 'SAS', 'CHI', 'MIA', 'DAL', 'HOU', 'MEM', 'MIN', 'NOP', 'PHI'],
-    # Sunday Feb 1, 2026
     '2026-02-01': ['BKN', 'DET', 'BOS', 'MIL', 'CHI', 'MIA', 'CLE', 'POR', 'DEN', 'OKC', 'LAC', 'PHO', 'LAL', 'NYK', 'ORL', 'SAS', 'TOR', 'UTA', 'WAS', 'SAC'],
-    
-    # Week 16: Feb 2 - Feb 8, 2026 (CORRECTED from Hashtag Basketball table)
-    # Monday 02/02 (4 games = 8 teams)
     '2026-02-02': ['CHA', 'HOU', 'IND', 'MEM', 'MIN', 'NOP'],
-    # Tuesday 03/02 (10 games = 20 teams)
     '2026-02-03': ['ATL', 'BKN', 'BOS', 'CHI', 'DAL', 'DEN', 'DET', 'GSW', 'IND', 'LAL', 'MIA', 'MIL', 'NYK', 'OKC', 'ORL', 'PHI', 'PHO', 'POR', 'UTA', 'WAS'],
-    # Wednesday 04/02 (7 games = 14 teams)
     '2026-02-04': ['BOS', 'CLE', 'DET', 'HOU', 'LAC', 'LAL', 'MEM', 'MIL', 'MIN', 'NOP', 'NYK', 'OKC', 'PHI', 'SAC', 'SAS', 'TOR'],
-    # Thursday 05/02 (8 games = 16 teams) 
     '2026-02-05': ['ATL', 'BKN', 'BOS', 'CHI', 'DAL', 'DEN', 'DET', 'GSW', 'IND', 'LAL', 'MIL', 'OKC', 'ORL', 'PHI', 'PHO', 'POR', 'TOR', 'UTA', 'WAS'],
-    # Friday 06/02 (6 games = 12 teams)
     '2026-02-06': ['BOS', 'CLE', 'HOU', 'LAC', 'MEM', 'MIA', 'MIN', 'NOP', 'NYK', 'POR', 'SAC', 'SAS'],
-    # Saturday 07/02 (10 games = 20 teams)
     '2026-02-07': ['ATL', 'BKN', 'BOS', 'CHI', 'DAL', 'DEN', 'DET', 'GSW', 'HOU', 'IND', 'LAL', 'MIL', 'OKC', 'ORL', 'PHI', 'PHO', 'POR', 'TOR', 'UTA', 'WAS'],
-    # Sunday 08/02 (4 games = 8 teams) - Note: some teams appear in Monday W17 column
     '2026-02-08': ['BOS', 'CHI', 'CLE', 'DEN', 'IND', 'MIA', 'MIL', 'NYK', 'TOR', 'WAS'],
-    
-    # Week 17: Feb 9 - Feb 22, 2026 (DOUBLE WEEK - All-Star Break included)
-    # First part: Feb 9-15
-    '2026-02-09': ['BKN', 'PHI', 'BOS', 'IND', 'CHI', 'ORL', 'DAL', 'LAL', 'DET', 'MIL', 'GSW', 'TOR', 'PHO', 'POR', 'UTA', 'WAS'],
-    '2026-02-10': ['ATL', 'CLE', 'CHA', 'HOU', 'LAC', 'MEM', 'MIN', 'NOP', 'NYK', 'OKC', 'SAC', 'SAS'],
-    '2026-02-11': ['BKN', 'MIA', 'BOS', 'DEN', 'CHI', 'IND', 'DAL', 'PHI', 'DET', 'ORL', 'GSW', 'LAL', 'MIL', 'TOR', 'PHO', 'UTA', 'POR', 'WAS'],
-    '2026-02-12': ['ATL', 'CLE', 'CHA', 'MEM', 'HOU', 'NOP', 'LAC', 'SAS', 'MIN', 'OKC', 'NYK', 'SAC'],
-    
-    # All-Star Weekend: Feb 13-18 (no regular season games, only All-Star events)
-    '2026-02-13': [],  # All-Star Friday (Celebrity Game, Rising Stars - not regular season)
-    '2026-02-14': [],  # All-Star Saturday (Skills, 3-Point, Dunk - not regular season)
-    '2026-02-15': [],  # All-Star Sunday (All-Star Game - not regular season)
-    '2026-02-16': [],  # All-Star Weekend (no games)
-    '2026-02-17': [],  # All-Star Weekend (no games)
-    '2026-02-18': [],  # All-Star Weekend (no games)
-    
-    # Post All-Star: Feb 19-22 (games resume)
+    '2026-02-09': ['ATL', 'BKN', 'CHA', 'CHI', 'CLE', 'DEN', 'DET', 'GSW', 'LAL', 'MEM', 'MIA', 'MIL', 'MIN', 'NOP', 'OKC', 'ORL', 'PHI', 'POR', 'UTA'],
+    '2026-02-10': ['DAL', 'HOU', 'IND', 'LAC', 'LAL', 'NYK', 'PHO', 'SAS'],
+    '2026-02-11': ['ATL', 'BOS', 'BKN', 'CHA', 'CHI', 'CLE', 'DEN', 'DET', 'GSW', 'HOU', 'IND', 'LAC', 'MEM', 'MIA', 'MIL', 'MIN', 'NOP', 'NYK', 'OKC', 'ORL', 'PHI', 'PHO', 'POR', 'SAS', 'TOR', 'UTA', 'WAS'],
+    '2026-02-12': ['ATL', 'BOS', 'BKN', 'CHA', 'CHI', 'CLE', 'DAL', 'DEN', 'DET', 'GSW', 'HOU', 'IND', 'LAC', 'LAL', 'MIL', 'NYK', 'OKC', 'ORL', 'PHI', 'PHO', 'POR', 'SAS', 'TOR', 'UTA', 'WAS'],
+    '2026-02-13': ['ATL', 'BKN', 'CHA', 'CLE', 'DAL', 'DEN', 'IND', 'LAC', 'LAL', 'MEM', 'MIA', 'MIL', 'MIN', 'NOP', 'OKC', 'POR', 'UTA', 'WAS'],
+    '2026-02-14': ['CHI', 'DET', 'HOU', 'MEM', 'MIA', 'NOP', 'NYK', 'ORL', 'PHI', 'PHO', 'SAS'],
+    '2026-02-15': ['ATL', 'BOS', 'BKN', 'CHA', 'CHI', 'CLE', 'DAL', 'DEN', 'GSW', 'IND', 'LAC', 'LAL', 'MIL', 'MIN', 'NYK', 'OKC', 'ORL', 'PHI', 'PHO', 'POR', 'TOR', 'WAS'],
+    '2026-02-16': [],
+    '2026-02-17': [],
+    '2026-02-18': [],
     '2026-02-19': ['MIL', 'HOU', 'BRK', 'ATL', 'IND', 'DET', 'TOR', 'PHO', 'BOS', 'ORL', 'DEN'],
     '2026-02-20': ['MIL', 'CLE', 'UTA', 'IND', 'MIA', 'DAL', 'BRK', 'LAC', 'DEN'],
     '2026-02-21': ['MIL', 'ORL', 'PHI', 'DET', 'MEM', 'SAC', 'HOU'],
-    '2026-02-22': ['MIL', 'CLE', 'BRK', 'DEN', 'TOR', 'DAL', 'CHO', 'BOS', 'PHI', 'NYK', 'POR', 'ORL']
-    
-    # Week 18: Feb 23 - Mar 1 (Post All-Star, typically 3-4 games/team)
+    '2026-02-22': ['MIL', 'CLE', 'BRK', 'DEN', 'TOR', 'DAL', 'CHO', 'BOS', 'PHI', 'NYK', 'POR', 'ORL'],
 }
 
 # Games per team per week from hashtagbasketball.com
@@ -751,6 +726,75 @@ def get_all_games_this_week() -> Dict[str, int]:
     return schedule.get_all_teams_games_count()
 
 
+def _update_hardcoded_schedule(date_str: str, teams: List[str]):
+    """
+    Auto-update HARDCODED_SCHEDULE in the file when we get new live data.
+    This keeps the fallback schedule accurate over time.
+    
+    Args:
+        date_str: Date in format 'YYYY-MM-DD'
+        teams: List of team abbreviations playing on that date
+    """
+    global HARDCODED_SCHEDULE
+    
+    # Check if this date is new or different from existing
+    if date_str in HARDCODED_SCHEDULE:
+        existing_teams = set(HARDCODED_SCHEDULE[date_str])
+        new_teams = set(teams)
+        if existing_teams == new_teams:
+            return  # No change needed
+    
+    # Update in-memory cache
+    HARDCODED_SCHEDULE[date_str] = teams
+    
+    try:
+        # Read the current file
+        file_path = __file__  # This module's path
+        with open(file_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+        
+        # Find the HARDCODED_SCHEDULE dictionary
+        start_marker = 'HARDCODED_SCHEDULE = {'
+        end_marker = '\n}\n\n# Games per team per week'
+        
+        start_idx = content.find(start_marker)
+        end_idx = content.find(end_marker, start_idx)
+        
+        if start_idx == -1 or end_idx == -1:
+            print(f"[DEBUG] Could not find HARDCODED_SCHEDULE boundaries in file")
+            return
+        
+        # Extract existing schedule
+        schedule_section = content[start_idx:end_idx + 2]  # Include closing }
+        
+        # Build new schedule section
+        new_lines = [start_marker]
+        
+        # Sort all dates and rebuild
+        all_dates = sorted(set(list(HARDCODED_SCHEDULE.keys()) + [date_str]))
+        
+        for date in all_dates:
+            if date in HARDCODED_SCHEDULE:
+                date_teams = HARDCODED_SCHEDULE[date]
+                teams_str = str(date_teams)
+                new_lines.append(f"    '{date}': {teams_str},")
+        
+        new_lines.append("}")
+        new_schedule_section = '\n'.join(new_lines)
+        
+        # Replace in content
+        new_content = content[:start_idx] + new_schedule_section + content[end_idx + 2:]
+        
+        # Write back to file
+        with open(file_path, 'w', encoding='utf-8') as f:
+            f.write(new_content)
+        
+        print(f"[DEBUG] ✅ Auto-updated HARDCODED_SCHEDULE for {date_str}")
+        
+    except Exception as e:
+        print(f"[DEBUG] Error auto-updating HARDCODED_SCHEDULE: {e}")
+
+
 def get_teams_playing_on_date(date: datetime) -> Tuple[List[str], bool]:
     """Get list of team abbreviations playing on a specific date.
     
@@ -759,25 +803,23 @@ def get_teams_playing_on_date(date: datetime) -> Tuple[List[str], bool]:
             - teams_list: List of team abbreviations playing
             - has_data: True if we have reliable data, False if no data available
     
-    First checks hardcoded schedule, then scraped schedule from hashtagbasketball.com,
-    then falls back to NBA API. If no data found, returns ([], False).
+    Priority order (ensures Yahoo accuracy):
+    1. Hashtag Basketball (LIVE, most accurate - matches Yahoo's data)
+    2. NBA Official API (backup)
+    3. HARDCODED_SCHEDULE (emergency fallback)
     """
     target_date = date.strftime('%Y-%m-%d')
     
-    # First, check hardcoded schedule (most reliable)
-    if target_date in HARDCODED_SCHEDULE:
-        teams = HARDCODED_SCHEDULE[target_date]
-        print(f"[DEBUG] Using hardcoded schedule for {target_date}: {len(teams)} teams")
-        return teams, True  # We have reliable data
-    
-    # Second, check scraped schedule (current week)
+    # First, check Hashtag Basketball (most accurate, matches Yahoo)
     hashtag_schedule = fetch_schedule_from_hashtagbasketball()
     if target_date in hashtag_schedule:
         teams = hashtag_schedule[target_date]
-        print(f"[DEBUG] Using scraped schedule for {target_date}: {len(teams)} teams")
+        print(f"[DEBUG] Using Hashtag Basketball schedule for {target_date}: {len(teams)} teams")
+        # Auto-update HARDCODED_SCHEDULE with live data
+        _update_hardcoded_schedule(target_date, teams)
         return teams, True  # We have reliable data
     
-    # Third, try NBA API
+    # Second, try NBA Official API
     try:
         url = "https://cdn.nba.com/static/json/staticData/scheduleLeagueV2.json"
         response = requests.get(url, timeout=10)
@@ -804,11 +846,19 @@ def get_teams_playing_on_date(date: datetime) -> Tuple[List[str], bool]:
             
             if teams_playing or date_str == target_date:
                 # If we found the date in NBA API (even if no games), we have data
-                print(f"[DEBUG] Using NBA API for {target_date}: {len(teams_playing)} teams")
+                print(f"[DEBUG] Using NBA Official API for {target_date}: {len(teams_playing)} teams")
+                # Auto-update HARDCODED_SCHEDULE with live data
+                _update_hardcoded_schedule(target_date, teams_playing)
                 return teams_playing, True
         
     except Exception as e:
         print(f"[DEBUG] NBA API error for {target_date}: {e}")
+    
+    # Third, fallback to hardcoded schedule (emergency only)
+    if target_date in HARDCODED_SCHEDULE:
+        teams = HARDCODED_SCHEDULE[target_date]
+        print(f"[DEBUG] Using HARDCODED schedule (fallback) for {target_date}: {len(teams)} teams")
+        return teams, True  # We have reliable data
     
     # No data available for this date
     print(f"[DEBUG] No game data found for {target_date}")
