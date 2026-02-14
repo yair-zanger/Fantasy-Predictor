@@ -122,8 +122,6 @@ class TeamProjection:
     team_name: str
     players: List[PlayerProjection]
     total_projected: Dict[str, float]
-    games_played: int = 0  # Games actually counted (past days, with 10/day limit)
-    games_total: int = 0   # Total games that will count (with 10/day limit)
     remaining_games: int = 0  # Games remaining (calculated accurately from active roster)
 
 
@@ -615,8 +613,6 @@ class FantasyPredictor:
                     'manager': team1.get('manager', ''),
                     'projected': team1_projection.total_projected,
                     'wins': team1_wins,
-                    'games_played': team1_projection.games_played,
-                    'games_total': team1_projection.games_total,
                     'remaining_games': team1_projection.remaining_games
                 },
                 'team2': {
@@ -625,8 +621,6 @@ class FantasyPredictor:
                     'manager': team2.get('manager', ''),
                     'projected': team2_projection.total_projected,
                     'wins': team2_wins,
-                    'games_played': team2_projection.games_played,
-                    'games_total': team2_projection.games_total,
                     'remaining_games': team2_projection.remaining_games
                 },
                 'category_winners': category_winners,
@@ -1033,29 +1027,16 @@ class FantasyPredictor:
                     else:
                         eligible_players.append(p)
                 
-                # Determine which players to use based on count
-                # Yahoo "Start Active Players" logic:
-                # - If starters + bench <= 10: use all (including bench)
-                # - If starters + bench > 10: use only starters (up to 10)
-                total_with_games = len(eligible_players) + len(bench_players)
-                
-                if total_with_games <= MAX_DAILY_STARTERS:
-                    # Include bench players
-                    players_to_count = eligible_players + bench_players
-                    bench_included = True
-                else:
-                    # Too many players - only use starters (no bench)
-                    players_to_count = eligible_players[:MAX_DAILY_STARTERS]
-                    bench_included = False
+                # Determine which players to count based on Yahoo's 10/day limit
+                # New SAP Logic: Assume user will start ANY player with a game,
+                # but Yahoo limits to max 10 players per day
+                # Combine all players (starters + bench) and take first 10
+                all_players_with_games = eligible_players + bench_players
+                players_to_count = all_players_with_games[:MAX_DAILY_STARTERS]
                 
                 # Detailed logging
                 day_str = day.strftime('%Y-%m-%d')
-                print(f"[DEBUG] {day_str}: {len(eligible_players)} starters + {len(bench_players)} bench = {total_with_games} total")
-                if bench_included:
-                    print(f"[DEBUG] {day_str}: Including bench (total <= {MAX_DAILY_STARTERS})")
-                else:
-                    print(f"[DEBUG] {day_str}: Excluding bench (total > {MAX_DAILY_STARTERS}), using {len(players_to_count)} starters")
-                
+                print(f"[DEBUG] {day_str}: {len(eligible_players)} starters + {len(bench_players)} bench = {len(all_players_with_games)} total")
                 # Count games for this day (Yahoo logic: max 10 per day)
                 games_counted += len(players_to_count)
                 
@@ -1236,63 +1217,19 @@ class FantasyPredictor:
             except Exception as e:
                 print(f"[DEBUG] Failed to fetch team stats for GP: {e}")
         
-        # Use Yahoo GP if available (accounts for players added/dropped mid-week)
-        # Otherwise fallback: use calculated count WITH 10/day cap (not raw schedule sum)
-        if yahoo_gp is not None:
-            past_games_counted = yahoo_gp
-            print(f"[DEBUG] Using Yahoo GP: {yahoo_gp} (accurate, includes roster changes)")
-        else:
-            past_games_counted = past_games_counted_calc
-            print(f"[DEBUG] Using calculated past games (10/day cap): {past_games_counted} (schedule raw was {schedule_games_played})")
-
-        # Calculate total: must respect 10/day cap (Yahoo "Start Active Players" logic)
-        all_days = past_days + remaining_days
-        schedule_games_total = 0
-        for p in player_info:
-            # For total games count, include all players (IL players may have games before/after IL)
-            # We only skip them in future projections, not in total capacity counting
-            team_abbr = p['team_abbr']
-            weekly_sched = get_team_weekly_schedule(team_abbr, week_start, week_end) if team_abbr else []
-            for day in all_days:
-                day_str = day.strftime('%Y-%m-%d')
-                for sched_day in weekly_sched:
-                    if sched_day.get('date') == day_str and sched_day.get('has_game'):
-                        schedule_games_total += 1
-                        break
-        
-        print(f"[DEBUG] Total games from schedule (all {len(all_days)} days, no cap): {schedule_games_total}")
-        print(f"[DEBUG] Total games with Yahoo logic (10/day cap): {past_games_counted_calc + remaining_games_counted}")
-        
-        # Total = past + remaining, BOTH with 10/day cap (so total matches Yahoo)
-        # CRITICAL: If yahoo_gp is available, use it directly for past games!
-        # This accounts for mid-week roster changes (add/drop) that Yahoo tracks but we can't calculate.
-        if yahoo_gp is not None:
-            # Use Yahoo's actual GP (includes all roster changes)
-            total_games_yahoo = yahoo_gp + remaining_games_counted
-            print(f"[DEBUG] Total games (Yahoo past + projected remaining): {yahoo_gp} + {remaining_games_counted} = {total_games_yahoo}")
-        else:
-            # Fallback: use calculated past games (with 10/day cap)
-            total_games_yahoo = past_games_counted_calc + remaining_games_counted
-            print(f"[DEBUG] Total games (calculated with 10/day cap): {total_games_yahoo} (schedule raw would be {schedule_games_total})")
+        print(f"[DEBUG] Remaining days games (projected, Yahoo logic): {remaining_games_counted}")
         
         # Only apply overrides/scaling if explicitly provided by user (for manual correction)
         scale_remaining = 1.0
         if yahoo_remaining_override is not None and remaining_games_counted > 0:
-            # Manual override from URL parameter (for debugging/testing)
             scale_remaining = yahoo_remaining_override / remaining_games_counted
-            if yahoo_gp is not None:
-                total_games_yahoo = yahoo_gp + yahoo_remaining_override
-            else:
-                total_games_yahoo = past_games_counted + yahoo_remaining_override
-            print(f"[DEBUG] Using yahoo_remaining override: {yahoo_remaining_override}, scale={scale_remaining:.3f}, total={total_games_yahoo}")
+            print(f"[DEBUG] Using yahoo_remaining override: {yahoo_remaining_override}, scale={scale_remaining:.3f}")
         
         if scale_remaining != 1.0:
             for cat in self.COUNTING_STATS:
                 remaining_stats[cat] = remaining_stats.get(cat, 0) * scale_remaining
             for k in remaining_fg_data:
                 remaining_fg_data[k] = remaining_fg_data.get(k, 0) * scale_remaining
-        
-        print(f"[DEBUG] Final: {past_games_counted}/{total_games_yahoo} games")
         
         # Use ACTUAL stats from Yahoo for past days if available
         # Only project remaining days
@@ -1413,8 +1350,6 @@ class FantasyPredictor:
             team_name=team_name,
             players=player_projections,
             total_projected=final_totals,
-            games_played=past_games_counted,
-            games_total=total_games_yahoo,
             remaining_games=remaining_games_counted
         )
     
@@ -1489,13 +1424,7 @@ class FantasyPredictor:
         """Project a player's stats for the week"""
         projected = {}
         
-        # #region agent log - Hypothesis A,C: Check stat lookup and values
-        import json
-        try:
-            with open(r'c:\Users\yoel\NBA_Fantasy\.cursor\debug.log', 'a') as f:
-                f.write(json.dumps({"hypothesisId":"A,C","location":"predictor.py:_project_player_stats","message":"Input stats","data":{"games":games,"injury_adj":injury_adj,"avg_stats_keys":list(avg_stats.keys())[:10],"sample_stat_12":avg_stats.get('12') or avg_stats.get(12)},"timestamp":__import__('time').time()}) + '\n')
-        except: pass
-        # #endregion
+
         
         # Get games played for calculating per-game averages (stat_id 0)
         games_played = avg_stats.get('0') or avg_stats.get(0) or 1
@@ -1523,12 +1452,7 @@ class FantasyPredictor:
                     raw_value = raw_value * 100
                 projected[cat_name] = raw_value
         
-        # #region agent log - Hypothesis A,C: Check projected output
-        try:
-            with open(r'c:\Users\yoel\NBA_Fantasy\.cursor\debug.log', 'a') as f:
-                f.write(json.dumps({"hypothesisId":"A,C","location":"predictor.py:_project_player_stats:end","message":"Projected stats","data":{"games_played":games_played,"projected":projected},"timestamp":__import__('time').time()}) + '\n')
-        except: pass
-        # #endregion
+
         
         # Store games for rate stat calculations
         projected['_games'] = games * injury_adj
@@ -1539,14 +1463,7 @@ class FantasyPredictor:
         """Aggregate projected stats for all players on a team"""
         totals = {cat: 0.0 for cat in self.STAT_CATEGORIES.keys()}
         
-        # #region agent log - Hypothesis B: Check aggregation input
-        import json
-        try:
-            with open(r'c:\Users\yoel\NBA_Fantasy\.cursor\debug.log', 'a') as f:
-                sample_player = players[0] if players else None
-                f.write(json.dumps({"hypothesisId":"B","location":"predictor.py:_aggregate_team_stats","message":"Aggregating stats","data":{"num_players":len(players),"sample_projected":sample_player.projected_stats if sample_player else None},"timestamp":__import__('time').time()}) + '\n')
-        except: pass
-        # #endregion
+
         
         # For rate stats, we need weighted averages
         total_fga = 0  # Field Goals Attempted (for FG%)
@@ -1581,13 +1498,7 @@ class FantasyPredictor:
         totals['FG%'] = (total_fgm / total_fga * 100) if total_fga > 0 else 0
         totals['FT%'] = (total_ftm / total_fta * 100) if total_fta > 0 else 0
         
-        # #region agent log - Hypothesis B: Check final totals
-        import json
-        try:
-            with open(r'c:\Users\yoel\NBA_Fantasy\.cursor\debug.log', 'a') as f:
-                f.write(json.dumps({"hypothesisId":"B","location":"predictor.py:_aggregate_team_stats:end","message":"Final totals","data":{"totals":totals},"timestamp":__import__('time').time()}) + '\n')
-        except: pass
-        # #endregion
+
         
         return totals
     

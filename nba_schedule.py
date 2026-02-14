@@ -126,10 +126,16 @@ def fetch_schedule_from_hashtagbasketball() -> Dict[str, List[str]]:
     today_date = datetime.now().date()
     today = today_date.strftime('%Y-%m-%d')
     
+    # Initialize with HARDCODED_SCHEDULE (contains improved/manual data for double weeks)
+    # This ensures we have data even if cache/scrape returns partial results (e.g. only 7 days of a 14-day week)
+    schedule_data = HARDCODED_SCHEDULE.copy()
+    
     # Check if we have cached data for today
     if _hashtag_schedule_date == today and _hashtag_schedule_cache:
         print(f"[HashtagBB] Using cached schedule ({len(_hashtag_schedule_cache)} dates)")
-        return _hashtag_schedule_cache
+        # Merge cache into hardcoded (cache takes precedence if exists)
+        schedule_data.update(_hashtag_schedule_cache)
+        return schedule_data
     
     # Try to load from disk cache
     if os.path.exists(HASHTAG_CACHE_FILE):
@@ -138,7 +144,11 @@ def fetch_schedule_from_hashtagbasketball() -> Dict[str, List[str]]:
                 cache_data = json.load(f)
             
             if cache_data.get('date') == today:
-                _hashtag_schedule_cache = cache_data.get('schedule', {})
+                disk_schedule = cache_data.get('schedule', {})
+                # Merge hardcoded into disk cache (disk takes precedence)
+                schedule_data.update(disk_schedule)
+                
+                _hashtag_schedule_cache = schedule_data
                 _hashtag_schedule_date = today
                 print(f"[HashtagBB] Loaded schedule from disk cache ({len(_hashtag_schedule_cache)} dates)")
                 return _hashtag_schedule_cache
@@ -157,7 +167,10 @@ def fetch_schedule_from_hashtagbasketball() -> Dict[str, List[str]]:
         
         if response.status_code != 200:
             print(f"[HashtagBB] Failed to fetch: HTTP {response.status_code}")
-            return _hashtag_schedule_cache or {}
+            # Use hardcoded schedule as fallback
+            _hashtag_schedule_cache = schedule_data
+            _hashtag_schedule_date = today
+            return _hashtag_schedule_cache
         
         soup = BeautifulSoup(response.text, 'lxml')
         
@@ -170,10 +183,13 @@ def fetch_schedule_from_hashtagbasketball() -> Dict[str, List[str]]:
         
         if not table:
             print("[HashtagBB] Could not find schedule table in HTML")
-            return _hashtag_schedule_cache or {}
+            # Return whatever we have (hardcoded)
+            _hashtag_schedule_cache = schedule_data
+            _hashtag_schedule_date = today
+            return _hashtag_schedule_cache
         
         # Parse the table
-        schedule_data = {}
+        # Parse the table\r\n        # schedule_data is already initialized with HARDCODED_SCHEDULE\r\n        # We will update it with scraped data (overwriting days we find, keeping days we don't)\r\n        return_data = schedule_data \r\n        
         
         # Get header row to extract dates and day names
         thead = table.find('thead')
@@ -417,14 +433,14 @@ HARDCODED_SCHEDULE = {
     '2026-02-11': ['ATL', 'BOS', 'BKN', 'CHA', 'CHI', 'CLE', 'DEN', 'DET', 'GSW', 'HOU', 'IND', 'LAC', 'MEM', 'MIA', 'MIL', 'MIN', 'NOP', 'NYK', 'OKC', 'ORL', 'PHI', 'PHO', 'POR', 'SAS', 'TOR', 'UTA', 'WAS'],
     '2026-02-12': ['ATL', 'BOS', 'BKN', 'CHA', 'CHI', 'CLE', 'DAL', 'DEN', 'DET', 'GSW', 'HOU', 'IND', 'LAC', 'LAL', 'MIL', 'NYK', 'OKC', 'ORL', 'PHI', 'PHO', 'POR', 'SAS', 'TOR', 'UTA', 'WAS'],
     '2026-02-13': ['ATL', 'BKN', 'CHA', 'CLE', 'DAL', 'DEN', 'IND', 'LAC', 'LAL', 'MEM', 'MIA', 'MIL', 'MIN', 'NOP', 'OKC', 'POR', 'UTA', 'WAS'],
-    '2026-02-14': ['CHI', 'DET', 'HOU', 'MEM', 'MIA', 'NOP', 'NYK', 'ORL', 'PHI', 'PHO', 'SAS'],
+    '2026-02-14': ['CHI', 'DET', 'HOU', 'MEM', 'MIA', 'NOP', 'NYK', 'ORL', 'PHI', 'PHO', 'SAS', 'ATL', 'BKN', 'BOS', 'CHA', 'CLE', 'DAL', 'DEN', 'GSW', 'IND', 'LAC', 'LAL', 'MIL', 'MIN', 'OKC', 'POR', 'SAC', 'TOR', 'UTA', 'WAS'],
     '2026-02-15': ['ATL', 'BOS', 'BKN', 'CHA', 'CHI', 'CLE', 'DAL', 'DEN', 'GSW', 'IND', 'LAC', 'LAL', 'MIL', 'MIN', 'NYK', 'OKC', 'ORL', 'PHI', 'PHO', 'POR', 'TOR', 'WAS'],
     '2026-02-16': [],
     '2026-02-17': [],
     '2026-02-18': [],
     '2026-02-19': ['MIL', 'HOU', 'BRK', 'ATL', 'IND', 'DET', 'TOR', 'PHO', 'BOS', 'ORL', 'DEN'],
     '2026-02-20': ['MIL', 'CLE', 'UTA', 'IND', 'MIA', 'DAL', 'BRK', 'LAC', 'DEN'],
-    '2026-02-21': ['MIL', 'ORL', 'PHI', 'DET', 'MEM', 'SAC', 'HOU'],
+    '2026-02-21': ['MIL', 'ORL', 'PHI', 'DET', 'MEM', 'SAC', 'HOU', 'ATL', 'BKN', 'BOS', 'CHA', 'CHI', 'CLE', 'DAL', 'DEN', 'GSW', 'IND', 'LAC', 'LAL', 'MIA', 'MIN', 'NOP', 'NYK', 'OKC', 'PHO', 'POR', 'SAS', 'TOR', 'UTA', 'WAS'],
     '2026-02-22': ['MIL', 'CLE', 'BRK', 'DEN', 'TOR', 'DAL', 'CHO', 'BOS', 'PHI', 'NYK', 'POR', 'ORL'],
 }
 
@@ -1211,24 +1227,18 @@ def get_team_weekly_schedule(team_abbr: str, week_start: datetime = None, week_e
                     opponent = None
                     date_games = full_schedule.get(date_str, {})
                     
-                    # #region agent log
-                    import json; open(r'c:\Users\USER\Fantasy-Predictor\.cursor\debug.log', 'a', encoding='utf-8').write(json.dumps({'location':'nba_schedule.py:796','message':'Fallback logic - checking for opponent','data':{'date':date_str,'team':team_abbr,'teams_in_hardcoded':len(teams_playing),'teams_in_api':len(date_games),'teams_playing_sample':teams_playing[:6]},'timestamp':datetime.now().timestamp()*1000,'sessionId':'debug-session','runId':'run1','hypothesisId':'A,B'})+'\n')
-                    # #endregion
+
                     
                     # Find teams in HARDCODED but missing from API (like our team)
                     missing_teams = [t for t in teams_playing if t not in date_games]
                     
-                    # #region agent log
-                    import json; open(r'c:\Users\USER\Fantasy-Predictor\.cursor\debug.log', 'a', encoding='utf-8').write(json.dumps({'location':'nba_schedule.py:799','message':'Missing teams found','data':{'date':date_str,'team':team_abbr,'missing_teams':missing_teams,'missing_count':len(missing_teams)},'timestamp':datetime.now().timestamp()*1000,'sessionId':'debug-session','runId':'run1','hypothesisId':'B'})+'\n')
-                    # #endregion
+
                     
                     # If exactly 2 teams are missing, they play each other!
                     if len(missing_teams) == 2:
                         opponent = missing_teams[0] if missing_teams[1] == team_abbr else missing_teams[1]
                         print(f"[NBA Schedule] Inferred opponent for {team_abbr} on {date_str}: {opponent} (both missing from API)")
-                        # #region agent log
-                        import json; open(r'c:\Users\USER\Fantasy-Predictor\.cursor\debug.log', 'a', encoding='utf-8').write(json.dumps({'location':'nba_schedule.py:804','message':'Found opponent pair','data':{'date':date_str,'team':team_abbr,'opponent':opponent},'timestamp':datetime.now().timestamp()*1000,'sessionId':'debug-session','runId':'run1','hypothesisId':'B'})+'\n')
-                        # #endregion
+
                     
                     # Only add game if we have a valid opponent
                     if opponent:
@@ -1238,9 +1248,7 @@ def get_team_weekly_schedule(team_abbr: str, week_start: datetime = None, week_e
                             'is_home': None
                         }
                     
-                    # #region agent log
-                    import json; open(r'c:\Users\USER\Fantasy-Predictor\.cursor\debug.log', 'a', encoding='utf-8').write(json.dumps({'location':'nba_schedule.py:810','message':'Added game to games_by_date','data':{'date':date_str,'team':team_abbr,'opponent':opponent if opponent else '?'},'timestamp':datetime.now().timestamp()*1000,'sessionId':'debug-session','runId':'run1','hypothesisId':'B'})+'\n')
-                    # #endregion
+
         current_day += timedelta(days=1)
         
     # Check if we have any games data at all
