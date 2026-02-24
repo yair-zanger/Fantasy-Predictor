@@ -9,6 +9,12 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import statistics
 
 from yahoo_api import api, STAT_ID_MAP, STAT_NAME_TO_ID
+from config import DEBUG_MODE
+
+def debug_print(*args, **kwargs):
+    """Print only if DEBUG_MODE is enabled."""
+    if DEBUG_MODE:
+        print(*args, **kwargs)
 
 # ==================== PREDICTION CACHE ====================
 # Cache for predictions (in-memory)
@@ -223,6 +229,13 @@ class FantasyPredictor:
         - Total = past + remaining (no reliance on Yahoo's matchup stats)
         """
         
+        # Check cache first
+        cache_key = f"predict_matchup:{league_key}:{week}:{current_week}:{yahoo_remaining_my_team}"
+        cached = _get_prediction_cached(cache_key)
+        if cached is not None:
+            debug_print(f"[DEBUG] Using cached prediction for {league_key} week {week}")
+            return cached
+            
         # Get my team
         my_team_info = self.api.get_my_team(league_key)
         if not my_team_info:
@@ -240,19 +253,22 @@ class FantasyPredictor:
         week_start_str = matchup.get('week_start')
         week_end_str = matchup.get('week_end')
         
-        print(f"[DEBUG] Yahoo week dates: start={week_start_str}, end={week_end_str}")
+        debug_print(f"[DEBUG] Yahoo week dates: start={week_start_str}, end={week_end_str}")
         
         # Determine if this is a past week (completed)
         is_past_week = current_week is not None and week_num < current_week
         
         # Get rosters (needed for both past and current weeks)
-        my_roster = self.api.get_team_roster(my_team_info['team_key'], week)
-        opponent_roster = self.api.get_team_roster(matchup['opponent']['team_key'], week)
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            f_my_roster = executor.submit(self.api.get_team_roster, my_team_info['team_key'], week)
+            f_opp_roster = executor.submit(self.api.get_team_roster, matchup['opponent']['team_key'], week)
+            my_roster = f_my_roster.result()
+            opponent_roster = f_opp_roster.result()
         
         # Get seasonal averages from Basketball Reference (more reliable than Yahoo)
-        print("[DEBUG] Fetching seasonal averages from Basketball Reference...")
+        debug_print("[DEBUG] Fetching seasonal averages from Basketball Reference...")
         bbref_stats = fetch_all_nba_season_averages()
-        print(f"[DEBUG] Got {len(bbref_stats)} player averages from Basketball Reference")
+        debug_print(f"[DEBUG] Got {len(bbref_stats)} player averages from Basketball Reference")
         
         # Collect all player keys for batch fetching from Yahoo
         all_player_keys = []
@@ -260,9 +276,9 @@ class FantasyPredictor:
             all_player_keys.append(player['player_key'])
         
         # Get season stats from Yahoo for all players (fallback if BBRef fails)
-        print("[DEBUG] Fetching season stats from Yahoo API as fallback...")
+        debug_print("[DEBUG] Fetching season stats from Yahoo API as fallback...")
         yahoo_season_stats = self.api.get_player_stats_averages(all_player_keys)
-        print(f"[DEBUG] Got season stats for {len(yahoo_season_stats)} players from Yahoo")
+        debug_print(f"[DEBUG] Got season stats for {len(yahoo_season_stats)} players from Yahoo")
         
         # Build player averages dictionary using Basketball Reference data
         player_averages = {}
@@ -277,31 +293,31 @@ class FantasyPredictor:
                 # Convert to Yahoo stat ID format
                 player_averages[player_key] = convert_to_yahoo_stat_ids(bbref_player_stats)
                 try:
-                    print(f"[DEBUG] {player_name}: Using BBRef seasonal avg (PTS: {bbref_player_stats.get('PTS', 0):.1f}/game)")
+                    debug_print(f"[DEBUG] {player_name}: Using BBRef seasonal avg (PTS: {bbref_player_stats.get('PTS', 0):.1f}/game)")
                 except UnicodeEncodeError:
-                    print(f"[DEBUG] Player {player_key}: Using BBRef seasonal avg (PTS: {bbref_player_stats.get('PTS', 0):.1f}/game)")
+                    debug_print(f"[DEBUG] Player {player_key}: Using BBRef seasonal avg (PTS: {bbref_player_stats.get('PTS', 0):.1f}/game)")
             elif player_key in yahoo_season_stats:
                 # Fallback to Yahoo season stats
                 player_averages[player_key] = yahoo_season_stats[player_key]
                 pts = yahoo_season_stats[player_key].get('12', yahoo_season_stats[player_key].get(12, 0))
                 try:
-                    print(f"[DEBUG] {player_name}: Using Yahoo season stats (PTS stat_id=12: {pts})")
+                    debug_print(f"[DEBUG] {player_name}: Using Yahoo season stats (PTS stat_id=12: {pts})")
                 except UnicodeEncodeError:
-                    print(f"[DEBUG] Player {player_key}: Using Yahoo season stats (PTS stat_id=12: {pts})")
+                    debug_print(f"[DEBUG] Player {player_key}: Using Yahoo season stats (PTS stat_id=12: {pts})")
             elif player.get('stats'):
                 # Last fallback: roster stats (might be empty for future weeks)
                 player_averages[player_key] = player['stats']
                 try:
-                    print(f"[DEBUG] {player_name}: Using Yahoo roster stats (last resort)")
+                    debug_print(f"[DEBUG] {player_name}: Using Yahoo roster stats (last resort)")
                 except UnicodeEncodeError:
-                    print(f"[DEBUG] Player {player_key}: Using Yahoo roster stats (last resort)")
+                    debug_print(f"[DEBUG] Player {player_key}: Using Yahoo roster stats (last resort)")
             else:
                 try:
-                    print(f"[DEBUG] {player_name}: WARNING - No stats available!")
+                    debug_print(f"[DEBUG] {player_name}: WARNING - No stats available!")
                 except UnicodeEncodeError:
-                    print(f"[DEBUG] Player {player_key}: WARNING - No stats available!")
+                    debug_print(f"[DEBUG] Player {player_key}: WARNING - No stats available!")
         
-        print(f"[DEBUG] Got averages for {len(player_averages)} players")
+        debug_print(f"[DEBUG] Got averages for {len(player_averages)} players")
         
         # Use week dates from Yahoo if available, otherwise calculate
         week_end_for_projection = None
@@ -310,7 +326,7 @@ class FantasyPredictor:
                 week_start_for_projection = datetime.strptime(week_start_str, '%Y-%m-%d')
                 if week_end_str:
                     week_end_for_projection = datetime.strptime(week_end_str, '%Y-%m-%d')
-                print(f"[DEBUG] Using Yahoo week_start: {week_start_for_projection}, week_end: {week_end_for_projection}")
+                debug_print(f"[DEBUG] Using Yahoo week_start: {week_start_for_projection}, week_end: {week_end_for_projection}")
             except:
                 # Fallback to calculation
                 week_end_for_projection = None
@@ -345,8 +361,8 @@ class FantasyPredictor:
         my_actual_stats = matchup.get('my_team', {}).get('stats', {})
         opponent_actual_stats = matchup.get('opponent', {}).get('stats', {})
         
-        print(f"[DEBUG] My team actual stats from Yahoo: {my_actual_stats}")
-        print(f"[DEBUG] Opponent actual stats from Yahoo: {opponent_actual_stats}")
+        debug_print(f"[DEBUG] My team actual stats from Yahoo: {my_actual_stats}")
+        debug_print(f"[DEBUG] Opponent actual stats from Yahoo: {opponent_actual_stats}")
         
         # Acquisition dates for both teams (from transactions) so we don't count players before they were added
         acquisition_dates_my = {}
@@ -360,19 +376,23 @@ class FantasyPredictor:
             try:
                 ws_dt = datetime.strptime(week_start_str, '%Y-%m-%d')
                 we_dt = datetime.strptime(week_end_str, '%Y-%m-%d')
-                acquisition_dates_my = self.api.get_acquisition_dates_for_team(
-                    league_key, my_team_info['team_key'], ws_dt, we_dt
-                )
-                acquisition_dates_opponent = self.api.get_acquisition_dates_for_team(
-                    league_key, matchup['opponent']['team_key'], ws_dt, we_dt
-                )
-                # Get IL placement/removal history for both teams
-                il_placements_my, il_removals_my = self.api.get_il_history_for_team(
-                    league_key, my_team_info['team_key'], ws_dt, we_dt
-                )
-                il_placements_opponent, il_removals_opponent = self.api.get_il_history_for_team(
-                    league_key, matchup['opponent']['team_key'], ws_dt, we_dt
-                )
+                
+                def fetch_acq(t_key):
+                    return self.api.get_acquisition_dates_for_team(league_key, t_key, ws_dt, we_dt)
+                
+                def fetch_il(t_key):
+                    return self.api.get_il_history_for_team(league_key, t_key, ws_dt, we_dt)
+                
+                with ThreadPoolExecutor(max_workers=4) as executor:
+                    f_acq_my = executor.submit(fetch_acq, my_team_info['team_key'])
+                    f_acq_opp = executor.submit(fetch_acq, matchup['opponent']['team_key'])
+                    f_il_my = executor.submit(fetch_il, my_team_info['team_key'])
+                    f_il_opp = executor.submit(fetch_il, matchup['opponent']['team_key'])
+                    
+                    acquisition_dates_my = f_acq_my.result()
+                    acquisition_dates_opponent = f_acq_opp.result()
+                    il_placements_my, il_removals_my = f_il_my.result()
+                    il_placements_opponent, il_removals_opponent = f_il_opp.result()
             except (ValueError, TypeError):
                 pass
         
@@ -417,7 +437,7 @@ class FantasyPredictor:
             my_projection, opponent_projection
         )
         
-        return MatchupPrediction(
+        prediction = MatchupPrediction(
             week=week_num,
             my_team=my_projection,
             opponent=opponent_projection,
@@ -429,6 +449,11 @@ class FantasyPredictor:
             actual_my_stats=my_actual_converted,
             actual_opponent_stats=opponent_actual_converted
         )
+        
+        # Cache the result
+        _set_prediction_cached(cache_key, prediction)
+        
+        return prediction
     
     def predict_all_matchups(self, league_key: str, week: int = None, current_week: int = None) -> List[Dict]:
         """Generate predictions for all matchups in the league.
@@ -439,7 +464,7 @@ class FantasyPredictor:
         cache_key = f"all_matchups:{league_key}:{week}"
         cached = _get_prediction_cached(cache_key)
         if cached is not None:
-            print(f"[DEBUG] Using cached predictions for {league_key} week {week}")
+            debug_print(f"[DEBUG] Using cached predictions for {league_key} week {week}")
             return cached
         
         # Get all matchups from scoreboard
@@ -468,7 +493,7 @@ class FantasyPredictor:
                 all_team_keys.append(team['team_key'])
         
         # Get rosters for all teams IN PARALLEL (much faster!)
-        print(f"[DEBUG] Fetching rosters for {len(all_team_keys)} teams in parallel...")
+        debug_print(f"[DEBUG] Fetching rosters for {len(all_team_keys)} teams in parallel...")
         all_rosters = {}
         
         def fetch_roster(team_key):
@@ -482,9 +507,9 @@ class FantasyPredictor:
                     team_key, roster = future.result()
                     all_rosters[team_key] = roster
                 except Exception as e:
-                    print(f"[DEBUG] Error fetching roster: {e}")
+                    debug_print(f"[DEBUG] Error fetching roster: {e}")
         
-        print(f"[DEBUG] Fetched {len(all_rosters)} rosters")
+        debug_print(f"[DEBUG] Fetched {len(all_rosters)} rosters")
         
         # Get all player keys
         all_player_keys = []
@@ -493,14 +518,14 @@ class FantasyPredictor:
                 all_player_keys.append(player['player_key'])
         
         # Get seasonal averages from Basketball Reference
-        print("[DEBUG] Fetching seasonal averages from Basketball Reference...")
+        debug_print("[DEBUG] Fetching seasonal averages from Basketball Reference...")
         bbref_stats = fetch_all_nba_season_averages()
-        print(f"[DEBUG] Got {len(bbref_stats)} player averages from Basketball Reference")
+        debug_print(f"[DEBUG] Got {len(bbref_stats)} player averages from Basketball Reference")
         
         # Get season stats from Yahoo for all players (fallback if BBRef fails)
-        print("[DEBUG] Fetching season stats from Yahoo API as fallback...")
+        debug_print("[DEBUG] Fetching season stats from Yahoo API as fallback...")
         yahoo_season_stats = self.api.get_player_stats_averages(all_player_keys)
-        print(f"[DEBUG] Got season stats for {len(yahoo_season_stats)} players from Yahoo")
+        debug_print(f"[DEBUG] Got season stats for {len(yahoo_season_stats)} players from Yahoo")
         
         # Build player averages dictionary
         player_averages = {}
@@ -649,8 +674,8 @@ class FantasyPredictor:
         my_stats = matchup.get('my_team', {}).get('stats', {})
         opponent_stats = matchup.get('opponent', {}).get('stats', {})
         
-        print(f"[DEBUG] Past week {week_num} - My actual stats: {my_stats}")
-        print(f"[DEBUG] Past week {week_num} - Opponent actual stats: {opponent_stats}")
+        debug_print(f"[DEBUG] Past week {week_num} - My actual stats: {my_stats}")
+        debug_print(f"[DEBUG] Past week {week_num} - Opponent actual stats: {opponent_stats}")
         
         # Convert stat IDs to category names
         my_totals = {}
@@ -842,9 +867,9 @@ class FantasyPredictor:
         
         is_dst = 3 <= today.month <= 10  # Approximate DST period
         
-        print(f"[DEBUG] Server time (Israel): {today}")
-        print(f"[DEBUG] Pacific time: {today_pst} ({'PDT' if is_dst else 'PST'})")
-        print(f"[DEBUG] Current Pacific date: {today_date_pst.date()}")
+        debug_print(f"[DEBUG] Server time (Israel): {today}")
+        debug_print(f"[DEBUG] Pacific time: {today_pst} ({'PDT' if is_dst else 'PST'})")
+        debug_print(f"[DEBUG] Current Pacific date: {today_date_pst.date()}")
         
         # Use Yahoo week dates if available (handles double weeks!)
         if yahoo_week_start and yahoo_week_end:
@@ -852,8 +877,8 @@ class FantasyPredictor:
                 week_start = datetime.strptime(yahoo_week_start, '%Y-%m-%d')
                 week_end = datetime.strptime(yahoo_week_end, '%Y-%m-%d')
                 week_end = week_end.replace(hour=23, minute=59, second=59)
-                print(f"[DEBUG] Using Yahoo week dates: {week_start.strftime('%Y-%m-%d')} to {week_end.strftime('%Y-%m-%d')}")
-                print(f"[DEBUG] Week duration: {(week_end - week_start).days + 1} days")
+                debug_print(f"[DEBUG] Using Yahoo week dates: {week_start.strftime('%Y-%m-%d')} to {week_end.strftime('%Y-%m-%d')}")
+                debug_print(f"[DEBUG] Week duration: {(week_end - week_start).days + 1} days")
             except:
                 yahoo_week_start = None
                 yahoo_week_end = None
@@ -871,12 +896,12 @@ class FantasyPredictor:
                 week_start = current_week_start + timedelta(weeks=week_offset)
                 week_end = week_start + timedelta(days=6, hours=23, minutes=59, seconds=59)
                 
-                print(f"[DEBUG] Calculated week {week_num}, current week {current_week}, offset: {week_offset} weeks")
-                print(f"[DEBUG] Week dates: {week_start.strftime('%Y-%m-%d')} to {week_end.strftime('%Y-%m-%d')}")
+                debug_print(f"[DEBUG] Calculated week {week_num}, current week {current_week}, offset: {week_offset} weeks")
+                debug_print(f"[DEBUG] Week dates: {week_start.strftime('%Y-%m-%d')} to {week_end.strftime('%Y-%m-%d')}")
             else:
                 # Fallback: use current week
                 week_start, week_end = get_week_dates_range()
-                print(f"[DEBUG] Using current week dates (fallback)")
+                debug_print(f"[DEBUG] Using current week dates (fallback)")
         
         # Get today's games for all teams (for display)
         todays_games = get_todays_games()
@@ -894,9 +919,9 @@ class FantasyPredictor:
                 remaining_days.append(current_day)
             current_day += timedelta(days=1)
         
-        print(f"[DEBUG] Past days: {len(past_days)}, Remaining days: {len(remaining_days)}")
-        print(f"[DEBUG] Past dates: {[d.strftime('%Y-%m-%d') for d in past_days]}")
-        print(f"[DEBUG] Remaining dates: {[d.strftime('%Y-%m-%d') for d in remaining_days]}")
+        debug_print(f"[DEBUG] Past days: {len(past_days)}, Remaining days: {len(remaining_days)}")
+        debug_print(f"[DEBUG] Past dates: {[d.strftime('%Y-%m-%d') for d in past_days]}")
+        debug_print(f"[DEBUG] Remaining dates: {[d.strftime('%Y-%m-%d') for d in remaining_days]}")
         
         # Build player info with positions and injury status
         acquisition_dates = acquisition_dates or {}
@@ -970,7 +995,7 @@ class FantasyPredictor:
             
             # Fetch full NBA schedule once (same source as visual schedule display)
             full_schedule = get_full_nba_schedule()
-            print(f"[DEBUG] Using NBA Official API schedule with {len(full_schedule)} dates")
+            debug_print(f"[DEBUG] Using NBA Official API schedule with {len(full_schedule)} dates")
             
             for day in days_list:
                 # Get teams playing on this day from NBA Official API
@@ -978,7 +1003,7 @@ class FantasyPredictor:
                 
                 # Check if we have data for this day
                 if day_str not in full_schedule:
-                    print(f"[DEBUG] No schedule data for {day_str}, skipping day (no estimation)")
+                    debug_print(f"[DEBUG] No schedule data for {day_str}, skipping day (no estimation)")
                     continue
                 
                 # Get teams from the day's schedule
@@ -986,7 +1011,7 @@ class FantasyPredictor:
                 
                 # If we have data but no games (e.g., All-Star break), count 0 games (skip day)
                 if not teams_playing:
-                    print(f"[DEBUG] Confirmed no games on {day_str} (e.g., All-Star break)")
+                    debug_print(f"[DEBUG] Confirmed no games on {day_str} (e.g., All-Star break)")
                     continue
                 
                 # Filter to eligible players for this day (including bench; optionally IL for past days)
@@ -1050,7 +1075,7 @@ class FantasyPredictor:
                 
                 # Detailed logging
                 day_str = day.strftime('%Y-%m-%d')
-                print(f"[DEBUG] {day_str}: {len(eligible_players)} starters + {len(bench_players)} bench = {len(all_players_with_games)} total")
+                debug_print(f"[DEBUG] {day_str}: {len(eligible_players)} starters + {len(bench_players)} bench = {len(all_players_with_games)} total")
                 # Count games for this day (Yahoo logic: max 10 per day)
                 games_counted += len(players_to_count)
                 
@@ -1060,9 +1085,9 @@ class FantasyPredictor:
                     name = p['name']
                     team = p['team_abbr']
                     try:
-                        print(f"[DEBUG]   -> {name} ({team}) [{pos}]")
+                        debug_print(f"[DEBUG]   -> {name} ({team}) [{pos}]")
                     except UnicodeEncodeError:
-                        print(f"[DEBUG]   -> Player {p['player_key']} ({team}) [{pos}]")
+                        debug_print(f"[DEBUG]   -> Player {p['player_key']} ({team}) [{pos}]")
                 
                 # Add stats for each player (1 game worth)
                 for p in players_to_count:
@@ -1169,23 +1194,23 @@ class FantasyPredictor:
             il_placements=il_placements,
             il_removals=il_removals
         )
-        print(f"[DEBUG] Past days stats: {past_stats}")
-        print(f"[DEBUG] Past days games counted (calculated from current roster): {past_games_counted_calc}")
+        debug_print(f"[DEBUG] Past days stats: {past_stats}")
+        debug_print(f"[DEBUG] Past days games counted (calculated from current roster): {past_games_counted_calc}")
 
         # Calculate stats for remaining days (projections)
-        print(f"[DEBUG] ========== REMAINING GAMES CALCULATION ==========")
-        print(f"[DEBUG] Remaining days: {len(remaining_days)} days")
+        debug_print(f"[DEBUG] ========== REMAINING GAMES CALCULATION ==========")
+        debug_print(f"[DEBUG] Remaining days: {len(remaining_days)} days")
         if remaining_days:
-            print(f"[DEBUG] From: {remaining_days[0].strftime('%Y-%m-%d')} to {remaining_days[-1].strftime('%Y-%m-%d')}")
+            debug_print(f"[DEBUG] From: {remaining_days[0].strftime('%Y-%m-%d')} to {remaining_days[-1].strftime('%Y-%m-%d')}")
         remaining_stats, remaining_fg_data, remaining_games_counted = calculate_daily_stats(
             remaining_days, 
             include_il_players=False,
             il_placements=il_placements,
             il_removals=il_removals
         )
-        print(f"[DEBUG] Remaining days stats (projected): {remaining_stats}")
-        print(f"[DEBUG] Remaining days games (projected, Yahoo logic): {remaining_games_counted}")
-        print(f"[DEBUG] ==================================================")
+        debug_print(f"[DEBUG] Remaining days stats (projected): {remaining_stats}")
+        debug_print(f"[DEBUG] Remaining days games (projected, Yahoo logic): {remaining_games_counted}")
+        debug_print(f"[DEBUG] ==================================================")
 
         # Calculate actual games played based on weekly schedule for past days
         # Count games from weekly_schedule for each player in past days
@@ -1205,8 +1230,8 @@ class FantasyPredictor:
                         schedule_games_played += 1
                         break
         
-        print(f"[DEBUG] Games played from schedule (past {len(past_days)} days, includes IL): {schedule_games_played}")
-        print(f"[DEBUG] Games counted with Yahoo logic (calculated): {past_games_counted_calc}")
+        debug_print(f"[DEBUG] Games played from schedule (past {len(past_days)} days, includes IL): {schedule_games_played}")
+        debug_print(f"[DEBUG] Games counted with Yahoo logic (calculated): {past_games_counted_calc}")
         
         # Try to get actual games played from Yahoo (stat_id 0 = Games Played)
         yahoo_gp = None
@@ -1220,29 +1245,29 @@ class FantasyPredictor:
             if raw_gp is not None:
                 try:
                     yahoo_gp = int(float(raw_gp))
-                    print(f"[DEBUG] Yahoo GP from matchup stats (actual, includes roster changes): {yahoo_gp} vs Schedule count: {schedule_games_played}")
+                    debug_print(f"[DEBUG] Yahoo GP from matchup stats (actual, includes roster changes): {yahoo_gp} vs Schedule count: {schedule_games_played}")
                 except (TypeError, ValueError):
                     yahoo_gp = None
         
         # If Games Played not in matchup stats, fetch from team stats endpoint
         if yahoo_gp is None and week_num is not None:
             try:
-                print(f"[DEBUG] Fetching team stats for {team_key} week {week_num} to get GP...")
+                debug_print(f"[DEBUG] Fetching team stats for {team_key} week {week_num} to get GP...")
                 team_stats = self.api.get_team_stats(team_key, week_num)
                 raw_gp = team_stats.get('0') or team_stats.get(0)
                 if raw_gp is not None:
                     yahoo_gp = int(float(raw_gp))
-                    print(f"[DEBUG] Yahoo GP from team stats (actual, includes roster changes): {yahoo_gp} vs Schedule count: {schedule_games_played}")
+                    debug_print(f"[DEBUG] Yahoo GP from team stats (actual, includes roster changes): {yahoo_gp} vs Schedule count: {schedule_games_played}")
             except Exception as e:
-                print(f"[DEBUG] Failed to fetch team stats for GP: {e}")
+                debug_print(f"[DEBUG] Failed to fetch team stats for GP: {e}")
         
-        print(f"[DEBUG] Remaining days games (projected, Yahoo logic): {remaining_games_counted}")
+        debug_print(f"[DEBUG] Remaining days games (projected, Yahoo logic): {remaining_games_counted}")
         
         # Only apply overrides/scaling if explicitly provided by user (for manual correction)
         scale_remaining = 1.0
         if yahoo_remaining_override is not None and remaining_games_counted > 0:
             scale_remaining = yahoo_remaining_override / remaining_games_counted
-            print(f"[DEBUG] Using yahoo_remaining override: {yahoo_remaining_override}, scale={scale_remaining:.3f}")
+            debug_print(f"[DEBUG] Using yahoo_remaining override: {yahoo_remaining_override}, scale={scale_remaining:.3f}")
         
         if scale_remaining != 1.0:
             for cat in self.COUNTING_STATS:
@@ -1253,7 +1278,7 @@ class FantasyPredictor:
         # Use ACTUAL stats from Yahoo for past days if available
         # Only project remaining days
         if actual_stats and len(past_days) > 0:
-            print(f"[DEBUG] Using ACTUAL stats from Yahoo for past {len(past_days)} days")
+            debug_print(f"[DEBUG] Using ACTUAL stats from Yahoo for past {len(past_days)} days")
             
             # Map Yahoo stat IDs to category names
             stat_id_to_cat = {v: k for k, v in self.STAT_CATEGORIES.items()}
@@ -1265,7 +1290,7 @@ class FantasyPredictor:
                 if cat_name and cat_name in self.COUNTING_STATS:
                     actual_counting[cat_name] = float(value) if value else 0
             
-            print(f"[DEBUG] Actual stats from Yahoo: {actual_counting}")
+            debug_print(f"[DEBUG] Actual stats from Yahoo: {actual_counting}")
             
             # Combine: actual (past) + projected (remaining)
             daily_projections = {}
@@ -1273,7 +1298,7 @@ class FantasyPredictor:
                 actual_val = actual_counting.get(cat, 0)
                 projected_val = remaining_stats.get(cat, 0)
                 daily_projections[cat] = actual_val + projected_val
-                print(f"[DEBUG] {cat}: actual={actual_val:.1f} + projected={projected_val:.1f} = {daily_projections[cat]:.1f}")
+                debug_print(f"[DEBUG] {cat}: actual={actual_val:.1f} + projected={projected_val:.1f} = {daily_projections[cat]:.1f}")
             
             # For FG%/FT%, use Yahoo actual data for past + projected for remaining
             # Yahoo provides FG% and FT% directly, we need to estimate FGM/FGA from actual
@@ -1304,7 +1329,7 @@ class FantasyPredictor:
             }
         else:
             # No actual stats - use projections for everything (beginning of week)
-            print(f"[DEBUG] No actual stats available, using projections for all days")
+            debug_print(f"[DEBUG] No actual stats available, using projections for all days")
             daily_projections = {cat: past_stats.get(cat, 0) + remaining_stats.get(cat, 0) for cat in self.COUNTING_STATS}
             daily_fg_data = {
                 'fgm': past_fg_data['fgm'] + remaining_fg_data['fgm'],
@@ -1362,7 +1387,7 @@ class FantasyPredictor:
                 else:
                     final_totals[cat] = 0
         
-        print(f"[DEBUG] Final projected totals: {final_totals}")
+        debug_print(f"[DEBUG] Final projected totals: {final_totals}")
 
         return TeamProjection(
             team_key=team_key,

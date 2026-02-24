@@ -8,6 +8,14 @@ import re
 import json
 import os
 from datetime import datetime
+from config import DEBUG_MODE
+
+
+def debug_print(*args, **kwargs):
+    """Print only if DEBUG_MODE is enabled."""
+    if DEBUG_MODE:
+        print(*args, **kwargs)
+
 
 # Cache settings
 CACHE_FILE = 'bbref_stats_cache.json'
@@ -39,16 +47,16 @@ def _load_cache_from_disk() -> bool:
                 # Cache is fresh, load it
                 _player_stats_cache = data.get('players', {})
                 _cache_timestamp = cache_time
-                print(f"[BBRef] Loaded {len(_player_stats_cache)} players from disk cache ({age_hours:.1f}h old)")
+                debug_print(f"[BBRef] Loaded {len(_player_stats_cache)} players from disk cache ({age_hours:.1f}h old)")
                 return True
             else:
-                print(f"[BBRef] Disk cache expired ({age_hours:.1f}h old)")
+                debug_print(f"[BBRef] Disk cache expired ({age_hours:.1f}h old)")
                 return False
         
         return False
         
     except Exception as e:
-        print(f"[BBRef] Error loading disk cache: {e}")
+        debug_print(f"[BBRef] Error loading disk cache: {e}")
         return False
 
 
@@ -68,10 +76,10 @@ def _save_cache_to_disk():
         with open(CACHE_FILE, 'w', encoding='utf-8') as f:
             json.dump(data, f, ensure_ascii=False)
         
-        print(f"[BBRef] Saved {len(_player_stats_cache)} players to disk cache")
+        debug_print(f"[BBRef] Saved {len(_player_stats_cache)} players to disk cache")
         
     except Exception as e:
-        print(f"[BBRef] Error saving disk cache: {e}")
+        debug_print(f"[BBRef] Error saving disk cache: {e}")
 
 
 def _normalize_name(name: str) -> str:
@@ -129,14 +137,14 @@ def fetch_all_nba_season_averages() -> Dict[str, Dict]:
     now = datetime.now()
     if _cache_timestamp and (now - _cache_timestamp).total_seconds() < CACHE_DURATION_HOURS * 3600:
         if _player_stats_cache:
-            print(f"[BBRef] Using memory cache ({len(_player_stats_cache)} players)")
+            debug_print(f"[BBRef] Using memory cache ({len(_player_stats_cache)} players)")
             return _player_stats_cache
     
     # Try loading from disk cache
     if _load_cache_from_disk():
         return _player_stats_cache
     
-    print("[BBRef] Fetching NBA season averages from Basketball Reference...")
+    debug_print("[BBRef] Fetching NBA season averages from Basketball Reference...")
     
     try:
         # Basketball Reference per-game stats page for current season
@@ -167,13 +175,13 @@ def fetch_all_nba_season_averages() -> Dict[str, Dict]:
         response = requests.get(url, headers=headers, timeout=30)
         
         if response.status_code != 200:
-            print(f"[BBRef] Failed to fetch data: HTTP {response.status_code}")
+            debug_print(f"[BBRef] Failed to fetch data: HTTP {response.status_code}")
             if response.status_code == 403:
-                print(f"[BBRef] Access forbidden - Basketball Reference may be blocking requests")
-                print(f"[BBRef] Will use cached data or fall back to Yahoo stats")
+                debug_print(f"[BBRef] Access forbidden - Basketball Reference may be blocking requests")
+                debug_print(f"[BBRef] Will use cached data or fall back to Yahoo stats")
             # Try to use existing cache even if expired
             if _player_stats_cache:
-                print(f"[BBRef] Using existing cache ({len(_player_stats_cache)} players)")
+                debug_print(f"[BBRef] Using existing cache ({len(_player_stats_cache)} players)")
                 return _player_stats_cache
             return {}
         
@@ -184,14 +192,14 @@ def fetch_all_nba_season_averages() -> Dict[str, Dict]:
         if stats:
             _player_stats_cache = stats
             _cache_timestamp = now
-            print(f"[BBRef] Successfully fetched {len(stats)} player averages")
+            debug_print(f"[BBRef] Successfully fetched {len(stats)} player averages")
             # Save to disk for persistence
             _save_cache_to_disk()
         
         return stats
         
     except Exception as e:
-        print(f"[BBRef] Error fetching data: {e}")
+        debug_print(f"[BBRef] Error fetching data: {e}")
         # Try disk cache as last resort
         if not _player_stats_cache:
             _load_cache_from_disk()
@@ -216,7 +224,7 @@ def _parse_bbref_stats(html: str) -> Dict[str, Dict]:
             table_match = re.search(r'<tbody>(.*?)</tbody>', html, re.DOTALL)
         
         if not table_match:
-            print("[BBRef] Could not find stats table")
+            debug_print("[BBRef] Could not find stats table")
             return stats
         
         table_content = table_match.group(1)
@@ -307,7 +315,7 @@ def _parse_bbref_stats(html: str) -> Dict[str, Dict]:
         return stats
         
     except Exception as e:
-        print(f"[BBRef] Error parsing HTML: {e}")
+        debug_print(f"[BBRef] Error parsing HTML: {e}")
         return stats
 
 

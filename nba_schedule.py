@@ -9,6 +9,12 @@ import json
 import os
 from bs4 import BeautifulSoup
 import re
+from config import DEBUG_MODE
+
+def debug_print(*args, **kwargs):
+    """Print only if DEBUG_MODE is enabled."""
+    if DEBUG_MODE:
+        print(*args, **kwargs)
 
 
 def get_pacific_time() -> datetime:
@@ -77,7 +83,7 @@ def _load_schedule_cache_from_disk():
         if data.get('todays_games_date') == today_str:
             _todays_games_cache = data.get('todays_games', {})
             _todays_games_date = data.get('todays_games_date')
-            print(f"[NBA Schedule] Loaded today's games from disk ({len(_todays_games_cache)} teams)")
+            debug_print(f"[NBA Schedule] Loaded today's games from disk ({len(_todays_games_cache)} teams)")
         
         # Load weekly schedule (check if still valid)
         if data.get('weekly_schedule_timestamp'):
@@ -87,12 +93,12 @@ def _load_schedule_cache_from_disk():
             if age_hours < WEEKLY_CACHE_TTL_HOURS:
                 _weekly_schedule_cache = data.get('weekly_schedule', {})
                 _weekly_schedule_timestamp = cached_time
-                print(f"[NBA Schedule] Loaded weekly schedule from disk ({len(_weekly_schedule_cache)} dates, {age_hours:.1f}h old)")
+                debug_print(f"[NBA Schedule] Loaded weekly schedule from disk ({len(_weekly_schedule_cache)} dates, {age_hours:.1f}h old)")
         
         _schedule_cache_loaded = True
         
     except Exception as e:
-        print(f"[NBA Schedule] Error loading cache from disk: {e}")
+        debug_print(f"[NBA Schedule] Error loading cache from disk: {e}")
         _schedule_cache_loaded = True
 
 
@@ -110,7 +116,7 @@ def _save_schedule_cache_to_disk():
             json.dump(data, f, ensure_ascii=False)
         
     except Exception as e:
-        print(f"[NBA Schedule] Error saving cache to disk: {e}")
+        debug_print(f"[NBA Schedule] Error saving cache to disk: {e}")
 
 
 def fetch_schedule_from_hashtagbasketball() -> Dict[str, List[str]]:
@@ -128,7 +134,7 @@ def fetch_schedule_from_hashtagbasketball() -> Dict[str, List[str]]:
     
     # Check if we have cached data for today (in-memory cache)
     if _hashtag_schedule_date == today and _hashtag_schedule_cache:
-        print(f"[HashtagBB] Using in-memory cached schedule ({len(_hashtag_schedule_cache)} dates)")
+        debug_print(f"[HashtagBB] Using in-memory cached schedule ({len(_hashtag_schedule_cache)} dates)")
         return _hashtag_schedule_cache
     
     # Try to load from disk cache
@@ -142,12 +148,12 @@ def fetch_schedule_from_hashtagbasketball() -> Dict[str, List[str]]:
                 
                 _hashtag_schedule_cache = disk_schedule
                 _hashtag_schedule_date = today
-                print(f"[HashtagBB] Loaded schedule from disk cache ({len(_hashtag_schedule_cache)} dates)")
+                debug_print(f"[HashtagBB] Loaded schedule from disk cache ({len(_hashtag_schedule_cache)} dates)")
                 return _hashtag_schedule_cache
         except Exception as e:
-            print(f"[HashtagBB] Error loading cache: {e}")
+            debug_print(f"[HashtagBB] Error loading cache: {e}")
     
-    print("[HashtagBB] Fetching schedule from hashtagbasketball.com...")
+    debug_print("[HashtagBB] Fetching schedule from hashtagbasketball.com...")
     
     try:
         url = "https://hashtagbasketball.com/advanced-nba-schedule-grid"
@@ -158,7 +164,7 @@ def fetch_schedule_from_hashtagbasketball() -> Dict[str, List[str]]:
         response = requests.get(url, headers=headers, timeout=15)
         
         if response.status_code != 200:
-            print(f"[HashtagBB] Failed to fetch: HTTP {response.status_code}")
+            debug_print(f"[HashtagBB] Failed to fetch: HTTP {response.status_code}")
             # Return empty dict - will fallback to NBA API or HARDCODED in get_teams_playing_on_date
             return {}
         
@@ -172,7 +178,7 @@ def fetch_schedule_from_hashtagbasketball() -> Dict[str, List[str]]:
             table = soup.find('table', class_='table--statistics')
         
         if not table:
-            print("[HashtagBB] Could not find schedule table in HTML")
+            debug_print("[HashtagBB] Could not find schedule table in HTML")
             # Return empty dict - will fallback to NBA API or HARDCODED
             return {}
         
@@ -213,7 +219,7 @@ def fetch_schedule_from_hashtagbasketball() -> Dict[str, List[str]]:
                     try:
                         parsed_date = datetime(current_year, month, day)
                         date_str = parsed_date.strftime('%Y-%m-%d')
-                        print(f"[HashtagBB] Parsed date from header '{header_text}': {date_str}")
+                        debug_print(f"[HashtagBB] Parsed date from header '{header_text}': {date_str}")
                     except:
                         pass
                 
@@ -239,7 +245,7 @@ def fetch_schedule_from_hashtagbasketball() -> Dict[str, List[str]]:
                     if day_offset is not None:
                         date = week_start + timedelta(days=day_offset)
                         date_str = date.strftime('%Y-%m-%d')
-                        print(f"[HashtagBB] Inferred date from day name '{header_text}': {date_str}")
+                        debug_print(f"[HashtagBB] Inferred date from day name '{header_text}': {date_str}")
                 
                 date_columns.append(date_str)
         
@@ -332,7 +338,7 @@ def fetch_schedule_from_hashtagbasketball() -> Dict[str, List[str]]:
                         return_data[date_str].append(team_abbr)
         
         if return_data:
-            print(f"[HashtagBB] Successfully scraped schedule: {len(return_data)} dates, {sum(len(teams) for teams in return_data.values())} team-games")
+            debug_print(f"[HashtagBB] Successfully scraped schedule: {len(return_data)} dates, {sum(len(teams) for teams in return_data.values())} team-games")
             
             # Ensure all data is JSON-serializable (convert any datetime to strings)
             clean_schedule_data = {}
@@ -354,19 +360,19 @@ def fetch_schedule_from_hashtagbasketball() -> Dict[str, List[str]]:
                 }
                 with open(HASHTAG_CACHE_FILE, 'w', encoding='utf-8') as f:
                     json.dump(cache_obj, f, ensure_ascii=False, indent=2)
-                print(f"[HashtagBB] Saved cache to {HASHTAG_CACHE_FILE}")
+                debug_print(f"[HashtagBB] Saved cache to {HASHTAG_CACHE_FILE}")
             except Exception as e:
-                print(f"[HashtagBB] Error saving cache: {e}")
+                debug_print(f"[HashtagBB] Error saving cache: {e}")
                 import traceback
                 traceback.print_exc()
             
             return clean_schedule_data
         else:
-            print("[HashtagBB] No schedule data found in table")
+            debug_print("[HashtagBB] No schedule data found in table")
             return _hashtag_schedule_cache or {}
         
     except Exception as e:
-        print(f"[HashtagBB] Error scraping schedule: {e}")
+        debug_print(f"[HashtagBB] Error scraping schedule: {e}")
         import traceback
         traceback.print_exc()
         return _hashtag_schedule_cache or {}
@@ -791,7 +797,7 @@ def _update_hardcoded_schedule(date_str: str, teams: List[str]):
         end_idx = content.find(end_marker, start_idx)
         
         if start_idx == -1 or end_idx == -1:
-            print(f"[DEBUG] Could not find HARDCODED_SCHEDULE boundaries in file")
+            debug_print(f"[DEBUG] Could not find HARDCODED_SCHEDULE boundaries in file")
             return
         
         # Extract existing schedule
@@ -819,10 +825,10 @@ def _update_hardcoded_schedule(date_str: str, teams: List[str]):
         with open(file_path, 'w', encoding='utf-8') as f:
             f.write(new_content)
         
-        print(f"[DEBUG] ✅ Auto-updated HARDCODED_SCHEDULE for {date_str}")
+        debug_print(f"[DEBUG] ✅ Auto-updated HARDCODED_SCHEDULE for {date_str}")
         
     except Exception as e:
-        print(f"[DEBUG] Error auto-updating HARDCODED_SCHEDULE: {e}")
+        debug_print(f"[DEBUG] Error auto-updating HARDCODED_SCHEDULE: {e}")
 
 
 def get_teams_playing_on_date(date: datetime) -> Tuple[List[str], bool]:
@@ -844,7 +850,7 @@ def get_teams_playing_on_date(date: datetime) -> Tuple[List[str], bool]:
     hashtag_schedule = fetch_schedule_from_hashtagbasketball()
     if target_date in hashtag_schedule:
         teams = hashtag_schedule[target_date]
-        print(f"[DEBUG] Using Hashtag Basketball schedule for {target_date}: {len(teams)} teams")
+        debug_print(f"[DEBUG] Using Hashtag Basketball schedule for {target_date}: {len(teams)} teams")
         # Auto-update HARDCODED_SCHEDULE with live data
         _update_hardcoded_schedule(target_date, teams)
         return teams, True  # We have reliable data
@@ -876,22 +882,22 @@ def get_teams_playing_on_date(date: datetime) -> Tuple[List[str], bool]:
             
             if teams_playing or date_str == target_date:
                 # If we found the date in NBA API (even if no games), we have data
-                print(f"[DEBUG] Using NBA Official API for {target_date}: {len(teams_playing)} teams")
+                debug_print(f"[DEBUG] Using NBA Official API for {target_date}: {len(teams_playing)} teams")
                 # Auto-update HARDCODED_SCHEDULE with live data
                 _update_hardcoded_schedule(target_date, teams_playing)
                 return teams_playing, True
         
     except Exception as e:
-        print(f"[DEBUG] NBA API error for {target_date}: {e}")
+        debug_print(f"[DEBUG] NBA API error for {target_date}: {e}")
     
     # Third, fallback to hardcoded schedule (emergency only)
     if target_date in HARDCODED_SCHEDULE:
         teams = HARDCODED_SCHEDULE[target_date]
-        print(f"[DEBUG] Using HARDCODED schedule (fallback) for {target_date}: {len(teams)} teams")
+        debug_print(f"[DEBUG] Using HARDCODED schedule (fallback) for {target_date}: {len(teams)} teams")
         return teams, True  # We have reliable data
     
     # No data available for this date
-    print(f"[DEBUG] No game data found for {target_date}")
+    debug_print(f"[DEBUG] No game data found for {target_date}")
     return [], False  # We don't have reliable data
 
 
@@ -952,10 +958,10 @@ def get_todays_games() -> Dict[str, Dict]:
     
     # Check if we have cached data for today
     if _todays_games_date == today_str and _todays_games_cache:
-        print(f"[NBA Schedule] Using cached today's games ({len(_todays_games_cache)} teams)")
+        debug_print(f"[NBA Schedule] Using cached today's games ({len(_todays_games_cache)} teams)")
         return _todays_games_cache
     
-    print(f"[NBA Schedule] Fetching today's games from NBA API...")
+    debug_print(f"[NBA Schedule] Fetching today's games from NBA API...")
     
     try:
         url = "https://cdn.nba.com/static/json/staticData/scheduleLeagueV2.json"
@@ -1028,7 +1034,7 @@ def get_todays_games() -> Dict[str, Dict]:
         # Cache the results
         _todays_games_cache = games_today
         _todays_games_date = today_str
-        print(f"[NBA Schedule] Cached {len(games_today)} teams for today")
+        debug_print(f"[NBA Schedule] Cached {len(games_today)} teams for today")
         
         # Save to disk
         _save_schedule_cache_to_disk()
@@ -1066,10 +1072,10 @@ def _fetch_and_cache_full_schedule() -> Dict[str, Dict]:
     if _weekly_schedule_timestamp:
         age_hours = (now - _weekly_schedule_timestamp).total_seconds() / 3600
         if age_hours < WEEKLY_CACHE_TTL_HOURS and _weekly_schedule_cache:
-            print(f"[NBA Schedule] Using cached schedule ({len(_weekly_schedule_cache)} dates, {age_hours:.1f}h old)")
+            debug_print(f"[NBA Schedule] Using cached schedule ({len(_weekly_schedule_cache)} dates, {age_hours:.1f}h old)")
             return _weekly_schedule_cache
     
-    print("[NBA Schedule] Fetching full schedule from NBA API...")
+    debug_print("[NBA Schedule] Fetching full schedule from NBA API...")
     
     try:
         url = "https://cdn.nba.com/static/json/staticData/scheduleLeagueV2.json"
@@ -1156,7 +1162,7 @@ def _fetch_and_cache_full_schedule() -> Dict[str, Dict]:
         
         _weekly_schedule_cache = schedule_data
         _weekly_schedule_timestamp = now
-        print(f"[NBA Schedule] Cached schedule for {len(schedule_data)} dates")
+        debug_print(f"[NBA Schedule] Cached schedule for {len(schedule_data)} dates")
         
         # Save to disk
         _save_schedule_cache_to_disk()
@@ -1164,7 +1170,7 @@ def _fetch_and_cache_full_schedule() -> Dict[str, Dict]:
         return schedule_data
         
     except Exception as e:
-        print(f"[NBA Schedule] Error fetching schedule: {e}")
+        debug_print(f"[NBA Schedule] Error fetching schedule: {e}")
         return _weekly_schedule_cache or {}
 
 
@@ -1260,7 +1266,7 @@ def get_team_weekly_schedule(team_abbr: str, week_start: datetime = None, week_e
                     # If exactly 2 teams are missing, they play each other!
                     if len(missing_teams) == 2:
                         opponent = missing_teams[0] if missing_teams[1] == team_abbr else missing_teams[1]
-                        print(f"[NBA Schedule] Inferred opponent for {team_abbr} on {date_str}: {opponent} (both missing from API)")
+                        debug_print(f"[NBA Schedule] Inferred opponent for {team_abbr} on {date_str}: {opponent} (both missing from API)")
 
                     
                     # Only add game if we have a valid opponent
@@ -1282,11 +1288,11 @@ def get_team_weekly_schedule(team_abbr: str, week_start: datetime = None, week_e
         week_start_str = week_start.strftime('%Y-%m-%d')
         if week_start_str in WEEKLY_GAMES:
             team_games_this_week = WEEKLY_GAMES[week_start_str].get(team_abbr, 4)
-            print(f"[DEBUG] No detailed schedule found for {team_abbr} week {week_start_str}, using WEEKLY_GAMES estimate: {team_games_this_week} games")
+            debug_print(f"[DEBUG] No detailed schedule found for {team_abbr} week {week_start_str}, using WEEKLY_GAMES estimate: {team_games_this_week} games")
         else:
             # Default fallback: estimate 4 games per week (typical NBA schedule)
             team_games_this_week = 4
-            print(f"[DEBUG] No schedule data for {team_abbr} week {week_start_str}, using default estimate: {team_games_this_week} games")
+            debug_print(f"[DEBUG] No schedule data for {team_abbr} week {week_start_str}, using default estimate: {team_games_this_week} games")
         
         # Distribute games evenly across the week (skip Sunday typically has fewer games)
         # Typical pattern: Mon-Sat with some off days

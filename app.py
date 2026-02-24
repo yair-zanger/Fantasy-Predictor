@@ -18,7 +18,12 @@ import time
 from yahoo_auth import auth
 from yahoo_api import api
 from predictor import predictor, PlayoffWeekError
-from config import CATEGORIES
+from config import CATEGORIES, DEBUG_MODE
+
+def debug_print(*args, **kwargs):
+    """Print only if DEBUG_MODE is enabled."""
+    if DEBUG_MODE:
+        print(*args, **kwargs)
 
 
 def _preload_data():
@@ -26,64 +31,136 @@ def _preload_data():
     try:
         # Load Yahoo API disk cache into memory (fast - just read JSON)
         from yahoo_api import load_disk_cache
-        print("[Startup] Loading Yahoo API cache from disk...")
+        debug_print("[Startup] Loading Yahoo API cache from disk...")
         load_disk_cache()
         
         # Pre-load Basketball Reference data
         from basketball_reference import fetch_all_nba_season_averages
-        print("[Startup] Pre-loading Basketball Reference data...")
+        debug_print("[Startup] Pre-loading Basketball Reference data...")
         stats = fetch_all_nba_season_averages()
-        print(f"[Startup] Pre-loaded {len(stats)} player averages")
+        debug_print(f"[Startup] Pre-loaded {len(stats)} player averages")
         
         # Pre-load NBA schedule data
         from nba_schedule import _fetch_and_cache_full_schedule
-        print("[Startup] Pre-loading NBA schedule data...")
+        debug_print("[Startup] Pre-loading NBA schedule data...")
         schedule = _fetch_and_cache_full_schedule()
-        print(f"[Startup] Pre-loaded schedule for {len(schedule)} dates")
+        debug_print(f"[Startup] Pre-loaded schedule for {len(schedule)} dates")
         
     except Exception as e:
-        print(f"[Startup] Error pre-loading data: {e}")
+        debug_print(f"[Startup] Error pre-loading data: {e}")
 
+
+_warm_lock = threading.Lock()
 
 def _warm_league_caches(leagues: list):
-    """Background: preload cache for all leagues so next pages are instant."""
+    """Background: preload cache for all leagues so next pages are instant.
+    This includes fetching data from Yahoo API and calculating predictions.
+    """
     if not leagues:
         return
+        
+    # Prevent multiple background warmups from running concurrently and killing the server
+    if not _warm_lock.acquire(blocking=False):
+        debug_print("[Cache Pre-warm] Warm already in progress, skipping to prevent server overload...")
+        return
+        
     try:
+        debug_print(f"[Cache Pre-warm] Starting background warm for {len(leagues)} leagues...")
         for league in leagues:
             try:
                 league_key = league.get('league_key')
                 current_week = int(league.get('current_week', 1))
+                
+                # 1. Warm Yahoo API data
                 api.get_league_settings(league_key)
                 api.get_my_team(league_key)
                 api.get_league_scoreboard(league_key, current_week)
                 api.get_league_standings(league_key)
                 my_team = api.get_my_team(league_key)
+                
                 if my_team:
                     api.get_team_roster(my_team['team_key'], current_week)
                     matchup = api.get_matchup(my_team['team_key'], current_week)
                     if matchup and matchup.get('opponent'):
                         api.get_team_roster(matchup['opponent']['team_key'], current_week)
+                
                 api.get_category_records(league_key, current_week)
-            except Exception:
+                
+                # 2. Warm Matchup Predictions for Current, Previous, and Next weeks
+                # This prevents the 20s load time for adjacent weeks
+                # Order matters: Warm current week first so it's ready ASAP
+                weeks_to_warm = [current_week]
+                
+                # Check end_week to avoid warming past the season
+                end_week = int(league.get('end_week', 24))
+                if current_week < end_week:
+                    weeks_to_warm.append(current_week + 1)
+                
+                if current_week > 1:
+                    weeks_to_warm.append(current_week - 1)
+                
+                for week in weeks_to_warm:
+                    # Give the server a small rest between heavy operations so the website remains responsive
+                    time.sleep(1.0)
+                    
+                    # First, all matchups in the league
+                    try:
+                        predictor.predict_all_matchups(league_key, week, current_week)
+                    except PlayoffWeekError:
+                        pass # Ignore if playoff week
+                    except Exception as e:
+                        debug_print(f"[Cache Pre-warm] Error pre-warming predict_all_matchups week {week}: {e}")
+                    
+                    # Second, my specific matchup
+                    try:
+                        predictor.predict_matchup(league_key, week, current_week)
+                    except PlayoffWeekError:
+                        pass
+                    except Exception as e:
+                        debug_print(f"[Cache Pre-warm] Error pre-warming predict_matchup week {week}: {e}")
+                    
+                # 3. Warm Standings Projections (projects current_week to current_week to populate the cache)
+                try:
+                    current_records = api.get_category_records(league_key, current_week)
+                    project_future_category_records(league_key, current_records, current_week, current_week)
+                except Exception as e:
+                    debug_print(f"[Cache Pre-warm] Error pre-warming standings: {e}")
+                    
+            except Exception as e:
+                debug_print(f"[Cache Pre-warm] Error pre-warming league {league.get('league_key')}: {e}")
                 continue
-        print("[Cache 24/7] League caches warmed")
+                
+        debug_print("[Cache Pre-warm] League caches and predictions warmed successfully!")
     except Exception as e:
-        print(f"[Cache 24/7] Warm error: {e}")
+        debug_print(f"[Cache Pre-warm] Warm error: {e}")
+    finally:
+        _warm_lock.release()
 
 
 def _background_cache_refresh_loop():
-    """Every 30 min refresh BBRef + NBA schedule so cache stays hot 24/7."""
+    """Every 10 min refresh BBRef + NBA schedule so cache stays hot 24/7.
+    Also warm up league caches if the user is authenticated.
+    """
     while True:
-        time.sleep(30 * 60)
+        time.sleep(10 * 60) # 10 minutes
         try:
             from basketball_reference import fetch_all_nba_season_averages
             from nba_schedule import _fetch_and_cache_full_schedule
             fetch_all_nba_season_averages()
             _fetch_and_cache_full_schedule()
-            print("[Cache 24/7] Refreshed BBRef + NBA schedule")
+            debug_print("[Cache 24/7] Refreshed BBRef + NBA schedule")
+            
+            # Also keep Yahoo API data and Matchup predictions warm
+            if auth.is_authenticated():
+                try:
+                    leagues = api.get_user_leagues()
+                    debug_print("[Cache 24/7] Triggering background pre-warm for authenticated user...")
+                    _warm_league_caches(leagues)
+                except Exception as e:
+                    debug_print(f"[Cache 24/7] Failed to warm Yahoo caches (token might be expired): {e}")
+                    
         except Exception as e:
-            print(f"[Cache 24/7] Refresh error: {e}")
+            debug_print(f"[Cache 24/7] Refresh error: {e}")
 
 
 app = Flask(__name__)
@@ -287,14 +364,14 @@ def standings(league_key):
             # Current/future week: calculate projected category records
             # Get actual records up to current week (past weeks only)
             category_records = api.get_category_records(league_key, current_week)
-            print(f"[Standings] Projecting from week {current_week} to {selected_week}")
+            debug_print(f"[Standings] Projecting from week {current_week} to {selected_week}")
             # Add predictions from current_week to selected_week
             category_records = project_future_category_records(
                 league_key, category_records, current_week, selected_week
             )
             # Re-rank teams based on projected category records
             standings_data = rerank_standings(standings_data, category_records)
-            print(f"[Standings] Re-ranked {len(standings_data)} teams based on projections")
+            debug_print(f"[Standings] Re-ranked {len(standings_data)} teams based on projections")
         
         return render_template('standings.html',
                              standings=standings_data,
@@ -351,42 +428,67 @@ def project_future_category_records(league_key: str, current_records: dict,
                                       current_week: int, target_week: int) -> dict:
     """Project category records for future weeks based on matchup predictions"""
     from copy import deepcopy
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    from predictor import _get_prediction_cached, _set_prediction_cached
     
+    # Check cache first
+    cache_key = f"projected_records:{league_key}:{current_week}:{target_week}"
+    cached = _get_prediction_cached(cache_key)
+    if cached is not None:
+        debug_print(f"[Standings] Using cached projected records for {league_key} week {current_week} to {target_week}")
+        return cached
+        
     # Start with current category records
     projected = deepcopy(current_records)
     
-    # For each week from current to target, add predicted category results
-    for week in range(current_week, target_week + 1):
+    # Helper to predict a single week
+    def predict_week(week):
         try:
-            predictions = predictor.predict_all_matchups(league_key, week, current_week)
-            
-            for matchup in predictions:
-                team1_key = matchup['team1']['key']
-                team2_key = matchup['team2']['key']
-                team1_cat_wins = matchup['team1']['wins']  # Category wins
-                team2_cat_wins = matchup['team2']['wins']  # Category wins
-                
-                # Initialize if not exists
-                if team1_key not in projected:
-                    projected[team1_key] = {'cat_wins': 0, 'cat_losses': 0, 'cat_ties': 0}
-                if team2_key not in projected:
-                    projected[team2_key] = {'cat_wins': 0, 'cat_losses': 0, 'cat_ties': 0}
-                
-                # Add category wins/losses
-                projected[team1_key]['cat_wins'] += team1_cat_wins
-                projected[team1_key]['cat_losses'] += team2_cat_wins
-                projected[team2_key]['cat_wins'] += team2_cat_wins
-                projected[team2_key]['cat_losses'] += team1_cat_wins
-                
-                # Calculate ties (9 categories - wins - losses for each team)
-                ties = 9 - team1_cat_wins - team2_cat_wins
-                if ties > 0:
-                    projected[team1_key]['cat_ties'] += ties
-                    projected[team2_key]['cat_ties'] += ties
-                    
+            return week, predictor.predict_all_matchups(league_key, week, current_week)
         except Exception as e:
-            print(f"[DEBUG] Error predicting week {week}: {e}")
-            continue
+            debug_print(f"[DEBUG] Error predicting week {week}: {e}")
+            return week, None
+            
+    # Fetch all future predictions in parallel
+    weeks_to_predict = list(range(current_week, target_week + 1))
+    week_predictions = {}
+    
+    with ThreadPoolExecutor(max_workers=min(10, len(weeks_to_predict) or 1)) as executor:
+        future_to_week = {executor.submit(predict_week, w): w for w in weeks_to_predict}
+        for future in as_completed(future_to_week):
+            week, predictions = future.result()
+            if predictions:
+                week_predictions[week] = predictions
+
+    # Apply predictions sequentially to ensure consistent processing
+    for week in sorted(week_predictions.keys()):
+        predictions = week_predictions[week]
+        for matchup in predictions:
+            team1_key = matchup['team1']['key']
+            team2_key = matchup['team2']['key']
+            team1_cat_wins = matchup['team1']['wins']  # Category wins
+            team2_cat_wins = matchup['team2']['wins']  # Category wins
+            
+            # Initialize if not exists
+            if team1_key not in projected:
+                projected[team1_key] = {'cat_wins': 0, 'cat_losses': 0, 'cat_ties': 0}
+            if team2_key not in projected:
+                projected[team2_key] = {'cat_wins': 0, 'cat_losses': 0, 'cat_ties': 0}
+            
+            # Add category wins/losses
+            projected[team1_key]['cat_wins'] += team1_cat_wins
+            projected[team1_key]['cat_losses'] += team2_cat_wins
+            projected[team2_key]['cat_wins'] += team2_cat_wins
+            projected[team2_key]['cat_losses'] += team1_cat_wins
+            
+            # Calculate ties (9 categories - wins - losses for each team)
+            ties = 9 - team1_cat_wins - team2_cat_wins
+            if ties > 0:
+                projected[team1_key]['cat_ties'] += ties
+                projected[team2_key]['cat_ties'] += ties
+    
+    # Save to cache
+    _set_prediction_cached(cache_key, projected)
     
     return projected
 
@@ -553,6 +655,48 @@ def logout():
     auth.token_expiry = None
     
     return redirect(url_for('login'))
+
+
+@app.route('/api/clear-roster-cache')
+def clear_roster_cache():
+    """Clear roster and transactions cache to force refresh from Yahoo.
+    Useful after making roster changes (add/drop players).
+    """
+    from yahoo_api import clear_cache_by_pattern
+    
+    count_roster = clear_cache_by_pattern('roster:')
+    count_trans = clear_cache_by_pattern('transactions:')
+    count_acq = clear_cache_by_pattern('acquisition_dates:')
+    count_il = clear_cache_by_pattern('il_history:')
+    
+    total = count_roster + count_trans + count_acq + count_il
+    
+    # Also wipe all prediction caches so they recalculate with the new rosters
+    try:
+        predictor._prediction_cache.clear()
+        debug_print("[Cache] Wiped predictor cache from user request")
+    except Exception as e:
+        debug_print(f"[Cache] Error wiping predictor cache: {e}")
+        
+    # Re-trigger background pre-warm to refill the caches immediately
+    try:
+        if auth.is_authenticated():
+            leagues = api.get_user_leagues()
+            import threading
+            threading.Thread(target=_warm_league_caches, args=(leagues,), daemon=True).start()
+    except Exception as e:
+        debug_print(f"[Cache] Error re-triggering pre-warm: {e}")
+    
+    return jsonify({
+        'success': True,
+        'message': f'Cache cleared! Refreshed {total} entries. Predictions are recalculating.',
+        'details': {
+            'roster': count_roster,
+            'transactions': count_trans,
+            'acquisition_dates': count_acq,
+            'il_history': count_il
+        }
+    })
 
 
 if __name__ == '__main__':

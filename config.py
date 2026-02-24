@@ -6,6 +6,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# Debug mode - set to True only when debugging (massive performance impact!)
+DEBUG_MODE = False
+
 # Yahoo OAuth Credentials
 YAHOO_CLIENT_ID = os.getenv('YAHOO_CLIENT_ID', 'dj0yJmk9aVU1SmE5WE56NW5NJmQ9WVdrOWN6ZHlTRTl6TWxrbWNHbzlNQT09JnM9Y29uc3VtZXJzZWNyZXQmc3Y9MCZ4PTRi')
 YAHOO_CLIENT_SECRET = os.getenv('YAHOO_CLIENT_SECRET', '')  # Empty for Public Client

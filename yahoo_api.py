@@ -11,7 +11,12 @@ from typing import Dict, List, Optional, Any, Tuple
 from datetime import datetime, timedelta
 from functools import wraps
 from yahoo_auth import auth
-from config import YAHOO_FANTASY_API_URL, CATEGORIES
+from config import YAHOO_FANTASY_API_URL, CATEGORIES, DEBUG_MODE
+
+def debug_print(*args, **kwargs):
+    """Print only if DEBUG_MODE is enabled."""
+    if DEBUG_MODE:
+        print(*args, **kwargs)
 
 # XML Namespace
 NS = {'yh': 'http://fantasysports.yahooapis.com/fantasy/v2/base.rng'}
@@ -24,13 +29,13 @@ CACHE_TTL = {
     'leagues': 86400,    # 24 hours - leagues rarely change
     'settings': 86400,   # 24 hours - settings rarely change
     'team': 7200,        # 2 hours - team info changes occasionally
-    'roster': 3600,      # 1 hour - roster can change (trades, adds/drops)
-    'matchup': 1800,     # 30 minutes - matchup stats update during games
+    'roster': 600,       # 10 minutes - perfectly aligns with background pre-warm
+    'matchup': 3600,     # 1 hour - matchup stats update during games
     'scoreboard': 86400, # 24 hours - scoreboard (past weeks don't change)
     'standings': 600,    # 10 minutes - standings update frequently during the week
     'player_stats': 3600,# 1 hour - player stats are relatively stable
     'cat_records': 604800, # 7 days - category records for past weeks NEVER change
-    'transactions': 1800,  # 30 min - transactions can change during the week
+    'transactions': 600,   # 10 minutes - transactions can change
 }
 
 # In-memory cache: {key: {'data': ..., 'expires': datetime}}
@@ -66,11 +71,11 @@ def _load_cache_from_disk():
                 }
                 loaded_count += 1
         
-        print(f"[Yahoo API] Loaded {loaded_count} cached items from disk")
+        debug_print(f"[Yahoo API] Loaded {loaded_count} cached items from disk")
         _cache_loaded = True
         
     except Exception as e:
-        print(f"[Yahoo API] Error loading cache from disk: {e}")
+        debug_print(f"[Yahoo API] Error loading cache from disk: {e}")
         _cache_loaded = True
 
 
@@ -89,7 +94,7 @@ def _save_cache_to_disk():
             json.dump(data, f, ensure_ascii=False)
         
     except Exception as e:
-        print(f"[Yahoo API] Error saving cache to disk: {e}")
+        debug_print(f"[Yahoo API] Error saving cache to disk: {e}")
 
 
 def _cache_key(endpoint: str, params: Dict = None) -> str:
@@ -124,6 +129,21 @@ def _set_cached(key: str, data: Any, ttl_seconds: int):
     _save_cache_to_disk()
 
 
+def clear_cache_by_pattern(pattern: str):
+    """Clear cache entries that match the given pattern (e.g., 'roster:', 'transactions:').
+    Useful for forcing a refresh of specific data types.
+    """
+    keys_to_delete = [key for key in _api_cache.keys() if pattern in key]
+    for key in keys_to_delete:
+        del _api_cache[key]
+    
+    # Save to disk after clearing
+    _save_cache_to_disk()
+    
+    debug_print(f"[Yahoo API] Cleared {len(keys_to_delete)} cache entries matching '{pattern}'")
+    return len(keys_to_delete)
+
+
 def load_disk_cache():
     """Load cache from disk into memory (call at startup for faster first request)."""
     _load_cache_from_disk()
@@ -136,7 +156,7 @@ def clear_cache():
     # Also clear disk cache
     if os.path.exists(CACHE_FILE):
         os.remove(CACHE_FILE)
-    print("[Yahoo API] Cache cleared")
+    debug_print("[Yahoo API] Cache cleared")
 
 
 class YahooFantasyAPI:
@@ -145,6 +165,7 @@ class YahooFantasyAPI:
     def __init__(self):
         self.base_url = YAHOO_FANTASY_API_URL
         self.auth = auth
+        self.session = requests.Session()
     
     def _make_request(self, endpoint: str, params: Dict = None) -> Optional[ET.Element]:
         """Make authenticated request to Yahoo Fantasy API"""
@@ -158,7 +179,7 @@ class YahooFantasyAPI:
         }
         
         url = f"{self.base_url}/{endpoint}"
-        response = requests.get(url, headers=headers, params=params)
+        response = self.session.get(url, headers=headers, params=params)
         
         if response.status_code == 200:
             return ET.fromstring(response.content)
@@ -175,7 +196,7 @@ class YahooFantasyAPI:
         cache_key = f"leagues:{game_key}"
         cached = _get_cached(cache_key)
         if cached is not None:
-            print(f"[Yahoo API] Using cached leagues ({len(cached)} leagues)")
+            debug_print(f"[Yahoo API] Using cached leagues ({len(cached)} leagues)")
             return cached
         
         root = self._make_request(f"users;use_login=1/games;game_keys={game_key}/leagues;out=settings")
@@ -260,7 +281,7 @@ class YahooFantasyAPI:
         cache_key = f"roster:{team_key}:{week or 'current'}"
         cached = _get_cached(cache_key)
         if cached is not None:
-            print(f"[Yahoo API] Using cached roster for {team_key}")
+            debug_print(f"[Yahoo API] Using cached roster for {team_key}")
             return cached
         
         # First get the roster
@@ -398,7 +419,7 @@ class YahooFantasyAPI:
         cache_key = f"scoreboard:{league_key}:{week or 'current'}"
         cached = _get_cached(cache_key)
         if cached is not None:
-            print(f"[Yahoo API] Using cached scoreboard for {league_key}")
+            debug_print(f"[Yahoo API] Using cached scoreboard for {league_key}")
             return cached
         
         # Request scoreboard WITH team stats (including Games Played stat_id=0)
@@ -449,7 +470,7 @@ class YahooFantasyAPI:
         cache_key = f"standings:{league_key}"
         cached = _get_cached(cache_key)
         if cached is not None:
-            print(f"[Yahoo API] Using cached standings for {league_key}")
+            debug_print(f"[Yahoo API] Using cached standings for {league_key}")
             return cached
         
         endpoint = f"league/{league_key}/standings"
@@ -485,6 +506,21 @@ class YahooFantasyAPI:
         _set_cached(cache_key, standings, CACHE_TTL['standings'])
         return standings
     
+    def _get_league_transactions_xml(self, league_key: str) -> ET.Element:
+        """Fetch and cache transactions XML for a league to avoid redundant API calls"""
+        cache_key = f"raw_transactions:{league_key}"
+        cached = _get_cached(cache_key)
+        if cached is not None:
+            return ET.fromstring(cached)
+            
+        endpoint = f"league/{league_key}/transactions"
+        root = self._make_request(endpoint)
+        
+        # Cache as string for the same TTL as transactions
+        xml_str = ET.tostring(root, encoding='unicode')
+        _set_cached(cache_key, xml_str, CACHE_TTL.get('transactions', 300))
+        return root
+
     def get_acquisition_dates_for_team(
         self, league_key: str, team_key: str,
         week_start_date: Optional[datetime] = None, week_end_date: Optional[datetime] = None
@@ -501,10 +537,9 @@ class YahooFantasyAPI:
             return {k: datetime.fromisoformat(v) for k, v in cached.items()}
         
         try:
-            endpoint = f"league/{league_key}/transactions"
-            root = self._make_request(endpoint)
+            root = self._get_league_transactions_xml(league_key)
         except Exception as e:
-            print(f"[Yahoo API] Could not fetch transactions: {e}")
+            debug_print(f"[Yahoo API] Could not fetch transactions: {e}")
             return {}
         
         # acquisition_dates[player_key] = date (only for players added to team_key during the week)
@@ -562,7 +597,7 @@ class YahooFantasyAPI:
         # Cache as ISO strings
         _set_cached(cache_key, {k: v.isoformat() for k, v in acquisition_dates.items()}, CACHE_TTL['transactions'])
         if acquisition_dates:
-            print(f"[Yahoo API] Acquisition dates for team: {acquisition_dates}")
+            debug_print(f"[Yahoo API] Acquisition dates for team: {acquisition_dates}")
         return acquisition_dates
     
     def get_il_history_for_team(
@@ -598,7 +633,7 @@ class YahooFantasyAPI:
         
         try:
             # Get current roster to see who is currently on IL
-            roster = self.get_team_roster(league_key, team_key)
+            roster = self.get_team_roster(team_key)
             current_il_players = set()
             
             for player in roster:
@@ -608,8 +643,7 @@ class YahooFantasyAPI:
             
             # Try to get transactions to find IL moves
             try:
-                endpoint = f"league/{league_key}/transactions"
-                root = self._make_request(endpoint)
+                root = self._get_league_transactions_xml(league_key)
                 
                 for txn in root.findall('.//yh:transaction', NS):
                     txn_type = self._get_text(txn, 'yh:type')
@@ -662,7 +696,7 @@ class YahooFantasyAPI:
                                 il_removals[player_key] = txn_date_dt
             
             except Exception as e:
-                print(f"[Yahoo API] Could not parse IL transactions: {e}")
+                debug_print(f"[Yahoo API] Could not parse IL transactions: {e}")
             
             # Fallback: If we found players currently on IL but no placement date,
             # conservatively assume they were placed at the start of the week
@@ -673,7 +707,7 @@ class YahooFantasyAPI:
                         il_placements[player_key] = datetime.combine(week_start, datetime.min.time())
         
         except Exception as e:
-            print(f"[Yahoo API] Could not fetch IL history: {e}")
+            debug_print(f"[Yahoo API] Could not fetch IL history: {e}")
         
         # Cache as ISO strings
         cache_data = {
@@ -683,7 +717,7 @@ class YahooFantasyAPI:
         _set_cached(cache_key, cache_data, CACHE_TTL['transactions'])
         
         if il_placements or il_removals:
-            print(f"[Yahoo API] IL history for team: placements={il_placements}, removals={il_removals}")
+            debug_print(f"[Yahoo API] IL history for team: placements={il_placements}, removals={il_removals}")
         
         return il_placements, il_removals
     
@@ -702,7 +736,7 @@ class YahooFantasyAPI:
         cache_key = f"cat_records:{league_key}:{current_week}"
         cached = _get_cached(cache_key)
         if cached is not None:
-            print(f"[Yahoo API] Using cached category records for {league_key}")
+            debug_print(f"[Yahoo API] Using cached category records for {league_key}")
             return cached
         
         # Standard 9-CAT categories with stat IDs
@@ -796,6 +830,8 @@ class YahooFantasyAPI:
         
         # Yahoo API allows max 25 players per request - cache each batch
         results = {}
+        batches_to_fetch = []
+        
         for i in range(0, len(player_keys), 25):
             batch = player_keys[i:i+25]
             batch_key = ','.join(sorted(batch))
@@ -803,14 +839,18 @@ class YahooFantasyAPI:
             cached_batch = _get_cached(cache_key)
             if cached_batch is not None:
                 results.update(cached_batch)
-                continue
+            else:
+                batches_to_fetch.append((batch, cache_key))
+                
+        if not batches_to_fetch:
+            return results
             
+        def fetch_batch(batch_data):
+            batch, cache_key = batch_data
             keys_str = ','.join(batch)
-            
             batch_results = {}
             try:
                 root = self._make_request(f"players;player_keys={keys_str}/stats;type=season")
-                
                 players_found = root.findall('.//yh:player', NS)
                 
                 for player in players_found:
@@ -824,35 +864,39 @@ class YahooFantasyAPI:
                     
                     if stats:
                         stats['_is_average'] = False
-                        results[player_key] = stats
                         batch_results[player_key] = stats
                 
                 if batch_results:
                     _set_cached(cache_key, batch_results, CACHE_TTL['player_stats'])
-                        
+                return batch_results
             except Exception as e:
                 # Try without type parameter
                 try:
                     root = self._make_request(f"players;player_keys={keys_str}/stats")
-                    
                     for player in root.findall('.//yh:player', NS):
                         player_key = self._get_text(player, 'yh:player_key')
                         stats = {}
-                        
                         for stat in player.findall('.//yh:stat', NS):
                             stat_id = self._get_text(stat, 'yh:stat_id')
                             value = self._get_text(stat, 'yh:value')
                             stats[stat_id] = self._parse_stat_value(value)
-                        
                         if stats:
                             stats['_is_average'] = False
-                            results[player_key] = stats
                             batch_results[player_key] = stats
                     
                     if batch_results:
                         _set_cached(cache_key, batch_results, CACHE_TTL['player_stats'])
+                    return batch_results
                 except Exception as e2:
-                    pass
+                    return {}
+
+        with ThreadPoolExecutor(max_workers=min(10, len(batches_to_fetch))) as executor:
+            future_to_batch = {executor.submit(fetch_batch, b): b for b in batches_to_fetch}
+            for future in as_completed(future_to_batch):
+                batch_res = future.result()
+                if batch_res:
+                    results.update(batch_res)
+                    
         return results
     
     def get_player_stats_last30(self, player_keys: List[str]) -> Dict[str, Dict]:
@@ -862,12 +906,17 @@ class YahooFantasyAPI:
         if not player_keys:
             return {}
         
-        print(f"[DEBUG] Getting last 30 days stats for {len(player_keys)} players...")
+        debug_print(f"[DEBUG] Getting last 30 days stats for {len(player_keys)} players...")
         
         results = {}
+        batches_to_fetch = []
+        
         for i in range(0, len(player_keys), 25):
-            batch = player_keys[i:i+25]
+            batches_to_fetch.append(player_keys[i:i+25])
+            
+        def fetch_batch(batch):
             keys_str = ','.join(batch)
+            batch_results = {}
             
             # Try different stat types for last 30 days
             stat_types_to_try = ['lastmonth', 'average']
@@ -875,45 +924,49 @@ class YahooFantasyAPI:
             
             for stat_type in stat_types_to_try:
                 try:
-                    print(f"[DEBUG] Trying: players;player_keys=.../stats;type={stat_type}")
+                    debug_print(f"[DEBUG] Trying: players;player_keys=.../stats;type={stat_type}")
                     root = self._make_request(f"players;player_keys={keys_str}/stats;type={stat_type}")
-                    
                     players_found = root.findall('.//yh:player', NS)
-                    print(f"[DEBUG] Found {len(players_found)} players in response for type={stat_type}")
                     
                     for player in players_found:
                         player_key = self._get_text(player, 'yh:player_key')
                         stats = {}
-                        
-                        stat_elements = player.findall('.//yh:stat', NS)
-                        for stat in stat_elements:
+                        for stat in player.findall('.//yh:stat', NS):
                             stat_id = self._get_text(stat, 'yh:stat_id')
                             value = self._get_text(stat, 'yh:value')
                             stats[stat_id] = self._parse_stat_value(value)
                         
                         if stats:
-                            # Mark as per-game average (already averaged)
                             stats['_is_average'] = True
-                            results[player_key] = stats
+                            batch_results[player_key] = stats
                     
-                    if results:
+                    if batch_results:
                         success = True
                         break
                         
                 except Exception as e:
-                    print(f"[DEBUG] Error with type={stat_type}: {e}")
+                    debug_print(f"[DEBUG] Error with type={stat_type}: {e}")
                     continue
             
             # Fallback to season stats if needed
             if not success:
-                print(f"[DEBUG] Falling back to season stats")
+                debug_print(f"[DEBUG] Falling back to season stats")
                 season_stats = self.get_player_stats_averages(batch)
                 for pk, stats in season_stats.items():
-                    if pk not in results:
+                    if pk not in batch_results:
                         stats['_is_average'] = False  # Total stats, need to divide by GP
-                        results[pk] = stats
+                        batch_results[pk] = stats
+                        
+            return batch_results
+
+        with ThreadPoolExecutor(max_workers=min(10, len(batches_to_fetch))) as executor:
+            future_to_batch = {executor.submit(fetch_batch, b): b for b in batches_to_fetch}
+            for future in as_completed(future_to_batch):
+                batch_res = future.result()
+                if batch_res:
+                    results.update(batch_res)
         
-        print(f"[DEBUG] Total players with last30 stats: {len(results)}")
+        debug_print(f"[DEBUG] Total players with last30 stats: {len(results)}")
         return results
     
     def get_opponent_roster(self, league_key: str, opponent_team_key: str, week: int = None) -> List[Dict]:
