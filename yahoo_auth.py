@@ -114,6 +114,7 @@ class YahooAuth:
             'scope': 'fspt-r',  # Fantasy Sports Read
             'code_challenge': code_challenge,
             'code_challenge_method': 'S256',
+            'prompt': 'login',   # Always show Yahoo login screen; allows switching accounts
         }
         return f"{AUTH_URL}?{urlencode(params)}"
     
