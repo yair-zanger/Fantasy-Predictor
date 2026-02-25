@@ -195,9 +195,15 @@ def login():
 
 @app.route('/auth/start')
 def auth_start():
-    """Start OAuth flow"""
-    auth_url = auth.get_auth_url()
-    return redirect(auth_url)
+    """Start OAuth flow — route through Yahoo sign-out first so the user
+    is always presented with a fresh login form and can switch accounts."""
+    from urllib.parse import quote
+    oauth_url = auth.get_auth_url()
+    # Passing the OAuth URL as the .done redirect means Yahoo will:
+    #   1. Sign the user out of their current Yahoo session
+    #   2. Redirect them to the OAuth login page where they enter credentials
+    yahoo_signout = f"https://login.yahoo.com/config/login?logout=1&.done={quote(oauth_url, safe='')}"
+    return redirect(yahoo_signout)
 
 
 @app.route('/auth/callback')
