@@ -22,8 +22,8 @@ YAHOO_TOKEN_URL = 'https://api.login.yahoo.com/oauth2/get_token'
 YAHOO_FANTASY_API_URL = 'https://fantasysports.yahooapis.com/fantasy/v2'
 
 # Redirect URI (must match what's in Yahoo Developer Console)
-# On Vercel: set REDIRECT_URI env var to https://<your-app>.vercel.app/auth/callback
-REDIRECT_URI = os.getenv('REDIRECT_URI', 'https://localhost:5000/auth/callback')
+# On Vercel: set REDIRECT_URI env var to override, or update the default here
+REDIRECT_URI = os.getenv('REDIRECT_URI', 'https://fantasy-predictor-eta.vercel.app/auth/callback')
 
 # Fantasy Basketball Categories (9-CAT)
 CATEGORIES = [
