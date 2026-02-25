@@ -216,6 +216,12 @@ class FantasyPredictor:
         self.api = api
         self.schedule = schedule
     
+    def clear_cache(self):
+        """Wipe the global prediction cache."""
+        global _prediction_cache
+        _prediction_cache = {}
+        debug_print("[FantasyPredictor] Cache cleared.")
+    
     def predict_matchup(self, league_key: str, week: int = None, current_week: int = None,
                        yahoo_remaining_my_team: Optional[int] = None) -> MatchupPrediction:
         """Generate full matchup prediction based on 30-day averages.

@@ -686,16 +686,17 @@ def clear_roster_cache():
     from yahoo_api import clear_cache_by_pattern
     
     count_roster = clear_cache_by_pattern('roster:')
+    count_matchup = clear_cache_by_pattern('matchup:')
     count_trans = clear_cache_by_pattern('transactions:')
+    count_raw_trans = clear_cache_by_pattern('raw_transactions:')
     count_acq = clear_cache_by_pattern('acquisition_dates:')
     count_il = clear_cache_by_pattern('il_history:')
     
-    total = count_roster + count_trans + count_acq + count_il
+    total = count_roster + count_matchup + count_trans + count_raw_trans + count_acq + count_il
     
     # Also wipe all prediction caches so they recalculate with the new rosters
     try:
-        predictor._prediction_cache.clear()
-        debug_print("[Cache] Wiped predictor cache from user request")
+        predictor.clear_cache()
     except Exception as e:
         debug_print(f"[Cache] Error wiping predictor cache: {e}")
         

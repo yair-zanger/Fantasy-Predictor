@@ -288,6 +288,8 @@ class YahooFantasyAPI:
         
         # First get the roster
         endpoint = f"team/{team_key}/roster/players"
+        if week:
+            endpoint += f";week={week}"
         
         root = self._make_request(endpoint)
         

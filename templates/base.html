@@ -368,6 +368,11 @@
             const btn = document.getElementById('navToggle');
             links.classList.toggle('open');
             btn.classList.toggle('open');
+
+            // If a page-specific side menu exists, toggle it too
+            if (typeof toggleSideMenu === 'function') {
+                toggleSideMenu();
+            }
         }
         // Close when a link is clicked (mobile)
         document.getElementById('navLinks').querySelectorAll('a').forEach(function (a) {

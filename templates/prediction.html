@@ -725,7 +725,7 @@
     .menu-toggle {
         position: fixed;
         top: calc(var(--nav-height, 64px) + 0.75rem);
-        right: 1rem;
+        left: 1rem;
         z-index: 800;
         width: 48px;
         height: 48px;
@@ -772,19 +772,19 @@
     .side-menu {
         position: fixed;
         top: 0;
-        right: -280px;
+        left: -280px;
         width: 280px;
         height: 100vh;
         background: var(--bg-card);
-        border-left: 2px solid var(--border-color);
+        border-right: 2px solid var(--border-color);
         z-index: 1000;
-        transition: right 0.3s ease;
+        transition: left 0.3s ease;
         padding: 5rem 1.5rem 2rem;
         overflow-y: auto;
     }
 
     .side-menu.open {
-        right: 0;
+        left: 0;
     }
 
     .side-menu-overlay {
