@@ -206,53 +206,7 @@
         margin-right: 0.5rem;
     }
 
-    /* Side Menu */
-    .menu-toggle {
-        position: fixed;
-        top: calc(var(--nav-height, 64px) + 0.75rem);
-        left: 1rem;
-        z-index: 800;
-        width: 48px;
-        height: 48px;
-        background: var(--bg-card);
-        border: 2px solid var(--accent-orange);
-        border-radius: 12px;
-        cursor: pointer;
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        align-items: center;
-        gap: 5px;
-        transition: all 0.3s;
-    }
 
-    .menu-toggle:hover {
-        background: var(--accent-orange);
-    }
-
-    .menu-toggle span {
-        width: 24px;
-        height: 3px;
-        background: var(--text-primary);
-        border-radius: 2px;
-        transition: all 0.3s;
-    }
-
-    .menu-toggle:hover span {
-        background: white;
-    }
-
-    .menu-toggle.open span:nth-child(1) {
-        transform: rotate(45deg) translate(5px, 5px);
-    }
-
-    .menu-toggle.open span:nth-child(2) {
-        opacity: 0;
-    }
-
-    .menu-toggle.open span:nth-child(3) {
-        transform: rotate(-45deg) translate(6px, -6px);
-    }
 
     .side-menu {
         position: fixed;
@@ -636,12 +590,7 @@
             {% endif %}
     </div>
 
-    <!-- Side Menu Toggle -->
-    <button class="menu-toggle" onclick="toggleSideMenu()" id="menuToggle">
-        <span></span>
-        <span></span>
-        <span></span>
-    </button>
+
 
     <!-- Side Menu Overlay -->
     <div class="side-menu-overlay" id="menuOverlay" onclick="toggleSideMenu()"></div>
@@ -775,11 +724,9 @@
     function toggleSideMenu() {
         const menu = document.getElementById('sideMenu');
         const overlay = document.getElementById('menuOverlay');
-        const toggle = document.getElementById('menuToggle');
 
         menu.classList.toggle('open');
         overlay.classList.toggle('open');
-        toggle.classList.toggle('open');
     }
 
     function toggleCategories(btn) {
