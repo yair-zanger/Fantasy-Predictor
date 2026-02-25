@@ -155,8 +155,8 @@ def clear_cache():
     """Clear all cached data."""
     global _api_cache
     _api_cache = {}
-    # Also clear disk cache
-    if os.path.exists(CACHE_FILE):
+    # Also clear disk cache (skipped on Vercel)
+    if not IS_VERCEL and os.path.exists(CACHE_FILE):
         os.remove(CACHE_FILE)
     debug_print("[Yahoo API] Cache cleared")
 

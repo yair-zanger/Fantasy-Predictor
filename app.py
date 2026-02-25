@@ -671,8 +671,8 @@ def logout():
     from yahoo_api import clear_cache
     clear_cache()
 
-    # Remove local token file if present (local dev)
-    if os.path.exists('yahoo_token.json'):
+    # Remove local token file if present (local dev only)
+    if not IS_VERCEL and os.path.exists('yahoo_token.json'):
         os.remove('yahoo_token.json')
 
     return redirect(url_for('login'))
