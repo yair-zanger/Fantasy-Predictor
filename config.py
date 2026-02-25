@@ -9,6 +9,9 @@ load_dotenv()
 # Debug mode - set to True only when debugging (massive performance impact!)
 DEBUG_MODE = False
 
+# Vercel serverless detection
+IS_VERCEL = os.getenv('VERCEL') == '1'
+
 # Yahoo OAuth Credentials
 YAHOO_CLIENT_ID = os.getenv('YAHOO_CLIENT_ID', 'dj0yJmk9aVU1SmE5WE56NW5NJmQ9WVdrOWN6ZHlTRTl6TWxrbWNHbzlNQT09JnM9Y29uc3VtZXJzZWNyZXQmc3Y9MCZ4PTRi')
 YAHOO_CLIENT_SECRET = os.getenv('YAHOO_CLIENT_SECRET', '')  # Empty for Public Client
@@ -19,7 +22,8 @@ YAHOO_TOKEN_URL = 'https://api.login.yahoo.com/oauth2/get_token'
 YAHOO_FANTASY_API_URL = 'https://fantasysports.yahooapis.com/fantasy/v2'
 
 # Redirect URI (must match what's in Yahoo Developer Console)
-REDIRECT_URI = 'https://localhost:5000/auth/callback'
+# On Vercel: set REDIRECT_URI env var to https://<your-app>.vercel.app/auth/callback
+REDIRECT_URI = os.getenv('REDIRECT_URI', 'https://localhost:5000/auth/callback')
 
 # Fantasy Basketball Categories (9-CAT)
 CATEGORIES = [

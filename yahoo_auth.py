@@ -15,7 +15,7 @@ import threading
 import ssl
 import socket
 
-from config import YAHOO_CLIENT_ID, YAHOO_CLIENT_SECRET, REDIRECT_URI
+from config import YAHOO_CLIENT_ID, YAHOO_CLIENT_SECRET, REDIRECT_URI, IS_VERCEL
 
 # OAuth endpoints
 AUTH_URL = 'https://api.login.yahoo.com/oauth2/request_auth'
@@ -290,29 +290,57 @@ class YahooAuth:
         return None
     
     def save_token(self):
-        """Save token to file"""
+        """Save token - uses Flask session on Vercel, file on local."""
         token_data = {
             'access_token': self.access_token,
             'refresh_token': self.refresh_token,
             'token_expiry': self.token_expiry
         }
-        with open(TOKEN_FILE, 'w') as f:
-            json.dump(token_data, f)
+        # Always try Flask session first (works in both environments)
+        try:
+            from flask import session
+            session['yahoo_token'] = token_data
+            session.modified = True
+        except RuntimeError:
+            pass  # No request context (e.g. CLI mode)
+        
+        # Also save to file if not on Vercel (for local persistence across restarts)
+        if not IS_VERCEL:
+            try:
+                with open(TOKEN_FILE, 'w') as f:
+                    json.dump(token_data, f)
+            except Exception:
+                pass
     
     def load_token(self):
-        """Load token from file"""
-        if os.path.exists(TOKEN_FILE):
+        """Load token - prefers Flask session, falls back to file on local."""
+        # Try Flask session first
+        try:
+            from flask import session
+            token_data = session.get('yahoo_token')
+            if token_data:
+                self.access_token = token_data.get('access_token')
+                self.refresh_token = token_data.get('refresh_token')
+                self.token_expiry = token_data.get('token_expiry')
+                return
+        except RuntimeError:
+            pass  # No request context
+        
+        # Fall back to file (local dev only)
+        if not IS_VERCEL and os.path.exists(TOKEN_FILE):
             try:
                 with open(TOKEN_FILE, 'r') as f:
                     token_data = json.load(f)
                     self.access_token = token_data.get('access_token')
                     self.refresh_token = token_data.get('refresh_token')
                     self.token_expiry = token_data.get('token_expiry')
-            except:
+            except Exception:
                 pass
     
     def is_authenticated(self):
         """Check if user is authenticated"""
+        # Always reload from session to pick up the current request's token
+        self.load_token()
         return self.access_token is not None
 
 

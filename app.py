@@ -164,7 +164,9 @@ def _background_cache_refresh_loop():
 
 
 app = Flask(__name__)
-app.secret_key = os.urandom(24)
+# Use a stable secret key so sessions survive across serverless cold starts.
+# Set FLASK_SECRET_KEY env var in Vercel dashboard.
+app.secret_key = os.getenv('FLASK_SECRET_KEY', os.urandom(24))
 
 
 # Make auth available in all templates
@@ -713,7 +715,7 @@ if __name__ == '__main__':
     _preload_data()
     print("✅ Data pre-loaded! Server is ready.\n")
     
-    # Keep cache hot 24/7: refresh BBRef + NBA schedule every 30 min (server stays local/private)
+    # Keep cache hot 24/7: refresh BBRef + NBA schedule every 30 min (local only)
     refresh_thread = threading.Thread(target=_background_cache_refresh_loop, daemon=True)
     refresh_thread.start()
     print("🔄 Cache 24/7: background refresh every 30 min (keeps site fast while server runs).\n")

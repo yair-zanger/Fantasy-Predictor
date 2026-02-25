@@ -26,3 +26,8 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Cache files (large, regenerated at runtime)
+yahoo_api_cache.json
+nba_schedule_disk_cache.json
+hashtag_schedule_cache.json

@@ -11,7 +11,7 @@ from typing import Dict, List, Optional, Any, Tuple
 from datetime import datetime, timedelta
 from functools import wraps
 from yahoo_auth import auth
-from config import YAHOO_FANTASY_API_URL, CATEGORIES, DEBUG_MODE
+from config import YAHOO_FANTASY_API_URL, CATEGORIES, DEBUG_MODE, IS_VERCEL
 
 def debug_print(*args, **kwargs):
     """Print only if DEBUG_MODE is enabled."""
@@ -80,7 +80,9 @@ def _load_cache_from_disk():
 
 
 def _save_cache_to_disk():
-    """Save cache to disk file."""
+    """Save cache to disk file (skipped on Vercel - read-only filesystem)."""
+    if IS_VERCEL:
+        return  # Vercel filesystem is read-only; in-memory cache is sufficient
     try:
         # Convert datetime to ISO format for JSON
         data = {}
