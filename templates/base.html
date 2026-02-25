@@ -45,32 +45,37 @@
             width: 100%;
             height: 100%;
             background:
-                radial-gradient(ellipse at top right, rgba(255, 107, 53, 0.1) 0%, transparent 50%),
-                radial-gradient(ellipse at bottom left, rgba(59, 130, 246, 0.1) 0%, transparent 50%);
+                radial-gradient(ellipse at top right, rgba(255, 107, 53, 0.10) 0%, transparent 50%),
+                radial-gradient(ellipse at bottom left, rgba(59, 130, 246, 0.10) 0%, transparent 50%);
             pointer-events: none;
             z-index: -1;
         }
 
-        /* ── TOP NAV ────────────────────────────────────── */
+        /* ═══════════════════════════════════════════
+           TOP NAV
+        ═══════════════════════════════════════════ */
         nav {
             background: var(--bg-secondary);
             border-bottom: 1px solid var(--border-color);
             height: var(--nav-height);
-            padding: 0 2rem;
+            padding: 0 1.5rem;
             display: flex;
             align-items: center;
-            justify-content: space-between;
+            gap: 0.75rem;
+            /* all children inline, left-aligned */
             position: sticky;
             top: 0;
             z-index: 900;
             backdrop-filter: blur(12px);
+            overflow: visible;
         }
 
+        /* ── Logo ── */
         .logo {
             display: flex;
             align-items: center;
-            gap: 0.6rem;
-            font-size: 1.35rem;
+            gap: 0.5rem;
+            font-size: 1.25rem;
             font-weight: 700;
             color: var(--text-primary);
             text-decoration: none;
@@ -85,19 +90,78 @@
             background-clip: text;
         }
 
-        /* Desktop links */
-        .nav-links {
+        /* ── Hamburger toggle (always visible left of logo) ── */
+        #navToggle {
+            order: -1;
+            /* force it to appear BEFORE the logo */
             display: flex;
-            gap: 0.25rem;
+            flex-direction: column;
+            justify-content: center;
             align-items: center;
+            gap: 5px;
+            width: 40px;
+            height: 40px;
+            flex-shrink: 0;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 9px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        #navToggle:hover {
+            background: var(--border-color);
+        }
+
+        #navToggle span {
+            display: block;
+            width: 20px;
+            height: 2px;
+            background: var(--text-primary);
+            border-radius: 2px;
+            transition: all 0.25s;
+        }
+
+        #navToggle.open span:nth-child(1) {
+            transform: rotate(45deg) translate(5px, 5px);
+        }
+
+        #navToggle.open span:nth-child(2) {
+            opacity: 0;
+            transform: scaleX(0);
+        }
+
+        #navToggle.open span:nth-child(3) {
+            transform: rotate(-45deg) translate(5px, -5px);
+        }
+
+        /* ── Nav links — inline, appear to the right of logo ── */
+        .nav-links {
+            display: none;
+            /* hidden until toggled OR on desktop always-show */
+            align-items: center;
+            gap: 0.25rem;
+            flex-wrap: nowrap;
+        }
+
+        /* On desktop (≥ 769px) always show links so they're reachable without clicking */
+        @media (min-width: 769px) {
+            .nav-links {
+                display: flex !important;
+            }
+        }
+
+        /* When hamburger is clicked, show inline (same row) */
+        .nav-links.open {
+            display: flex;
         }
 
         .nav-links a {
             color: var(--text-secondary);
             text-decoration: none;
             font-weight: 500;
-            font-size: 0.95rem;
-            padding: 0.5rem 1.1rem;
+            font-size: 0.9rem;
+            padding: 0.45rem 1rem;
             border-radius: 8px;
             transition: color 0.2s, background 0.2s;
             white-space: nowrap;
@@ -105,130 +169,30 @@
 
         .nav-links a:hover {
             color: var(--text-primary);
-            background: rgba(255, 255, 255, 0.06);
+            background: rgba(255, 255, 255, 0.07);
         }
 
         .nav-links .nav-cta {
             background: linear-gradient(135deg, var(--accent-orange), #ff8f35);
             color: white !important;
             font-weight: 600;
-            padding: 0.5rem 1.25rem;
+            padding: 0.45rem 1.1rem;
         }
 
         .nav-links .nav-cta:hover {
-            box-shadow: 0 4px 14px rgba(255, 107, 53, 0.4);
-            background: linear-gradient(135deg, #e55a25, var(--accent-orange));
+            box-shadow: 0 3px 12px rgba(255, 107, 53, 0.4);
         }
 
-        /* Mobile hamburger */
-        .nav-hamburger {
-            display: none;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            gap: 5px;
-            width: 42px;
-            height: 42px;
-            background: var(--bg-card);
-            border: 1px solid var(--border-color);
-            border-radius: 10px;
-            cursor: pointer;
-            flex-shrink: 0;
-            transition: background 0.2s;
-        }
-
-        .nav-hamburger:hover {
-            background: var(--border-color);
-        }
-
-        .nav-hamburger span {
-            display: block;
-            width: 22px;
-            height: 2px;
-            background: var(--text-primary);
-            border-radius: 2px;
-            transition: all 0.3s;
-        }
-
-        .nav-hamburger.open span:nth-child(1) {
-            transform: rotate(45deg) translate(5px, 5px);
-        }
-
-        .nav-hamburger.open span:nth-child(2) {
-            opacity: 0;
-        }
-
-        .nav-hamburger.open span:nth-child(3) {
-            transform: rotate(-45deg) translate(5px, -5px);
-        }
-
-        /* Mobile drawer */
-        .nav-drawer {
-            display: none;
-            position: fixed;
-            top: var(--nav-height);
-            left: 0;
-            right: 0;
-            background: var(--bg-secondary);
-            border-bottom: 2px solid var(--border-color);
-            padding: 1rem 1.25rem 1.5rem;
-            z-index: 899;
-            flex-direction: column;
-            gap: 0.5rem;
-            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.7);
-        }
-
-        .nav-drawer.open {
-            display: flex;
-            animation: slideDown 0.2s ease-out;
-        }
-
-        @keyframes slideDown {
-            from {
-                transform: translateY(-10px);
-                opacity: 0;
-            }
-
-            to {
-                transform: translateY(0);
-                opacity: 1;
-            }
-        }
-
-        .nav-drawer a {
-            display: flex;
-            align-items: center;
-            gap: 0.6rem;
-            color: var(--text-primary);
-            text-decoration: none;
-            font-weight: 500;
-            font-size: 1rem;
-            padding: 0.85rem 1.1rem;
-            border-radius: 10px;
-            border: 1px solid var(--border-color);
-            background: var(--bg-card);
-            transition: background 0.2s, border-color 0.2s;
-        }
-
-        .nav-drawer a:hover {
-            background: var(--border-color);
-            border-color: var(--accent-orange);
-        }
-
-        .nav-drawer .nav-cta {
-            background: linear-gradient(135deg, var(--accent-orange), #ff8f35);
-            border-color: transparent;
-            color: white;
-        }
-
-        /* ── CONTAINER ──────────────────────────────────── */
+        /* ═══════════════════════════════════════════
+           PAGE LAYOUT
+        ═══════════════════════════════════════════ */
         .container {
             max-width: 1200px;
             margin: 0 auto;
             padding: 2rem;
         }
 
-        /* ── CARDS ───────────────────────────────────────── */
+        /* ── Cards ── */
         .card {
             background: var(--bg-card);
             border: 1px solid var(--border-color);
@@ -257,7 +221,7 @@
             font-weight: 700;
         }
 
-        /* ── BUTTONS ─────────────────────────────────────── */
+        /* ── Buttons ── */
         .btn {
             display: inline-flex;
             align-items: center;
@@ -293,7 +257,7 @@
             background: var(--border-color);
         }
 
-        /* ── STATS GRID ──────────────────────────────────── */
+        /* ── Stats Grid ── */
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
@@ -320,7 +284,7 @@
             margin-top: 0.25rem;
         }
 
-        /* ── ANIMATIONS ──────────────────────────────────── */
+        /* ── Animations ── */
         @keyframes fadeIn {
             from {
                 opacity: 0;
@@ -349,20 +313,8 @@
             animation-delay: 0.3s;
         }
 
-        /* ── RESPONSIVE ──────────────────────────────────── */
+        /* ── Responsive ── */
         @media (max-width: 768px) {
-            nav {
-                padding: 0 1rem;
-            }
-
-            .nav-links {
-                display: none;
-            }
-
-            .nav-hamburger {
-                display: flex;
-            }
-
             .container {
                 padding: 1rem;
             }
@@ -381,14 +333,22 @@
 </head>
 
 <body>
-    <!-- ── TOP NAVIGATION ── -->
+
+    <!-- ══════════ TOP NAVIGATION ══════════ -->
     <nav>
+        <!-- Hamburger: order:-1 puts it leftmost -->
+        <button id="navToggle" onclick="toggleNav()" aria-label="Menu">
+            <span></span><span></span><span></span>
+        </button>
+
+        <!-- Logo -->
         <a href="{{ url_for('dashboard') }}" class="logo">
             🏀 <span>Fantasy Predictor</span>
         </a>
 
-        <!-- Desktop links (right side) -->
-        <div class="nav-links">
+        <!-- Nav links — inline, to the right of logo.
+         Hidden on mobile until hamburger pressed. Always visible on desktop. -->
+        <div class="nav-links" id="navLinks">
             {% if auth.is_authenticated() %}
             <a href="{{ url_for('dashboard') }}">Leagues</a>
             <a href="{{ url_for('logout') }}" class="nav-cta">Logout</a>
@@ -396,39 +356,27 @@
             <a href="{{ url_for('login') }}" class="nav-cta">Login</a>
             {% endif %}
         </div>
-
-        <!-- Mobile hamburger -->
-        <button class="nav-hamburger" id="navHamburger" onclick="toggleNavDrawer()" aria-label="Menu">
-            <span></span><span></span><span></span>
-        </button>
     </nav>
-
-    <!-- Mobile slide-down drawer -->
-    <div class="nav-drawer" id="navDrawer">
-        {% if auth.is_authenticated() %}
-        <a href="{{ url_for('dashboard') }}">🏀 Leagues</a>
-        <a href="{{ url_for('logout') }}" class="nav-cta">🚪 Logout</a>
-        {% else %}
-        <a href="{{ url_for('login') }}" class="nav-cta">🔑 Login with Yahoo</a>
-        {% endif %}
-    </div>
 
     <main class="container">
         {% block content %}{% endblock %}
     </main>
 
     <script>
-        function toggleNavDrawer() {
-            const drawer = document.getElementById('navDrawer');
-            const btn = document.getElementById('navHamburger');
-            drawer.classList.toggle('open');
+        function toggleNav() {
+            const links = document.getElementById('navLinks');
+            const btn = document.getElementById('navToggle');
+            links.classList.toggle('open');
             btn.classList.toggle('open');
         }
-        // Auto-close drawer on link click
-        document.getElementById('navDrawer').querySelectorAll('a').forEach(function (a) {
+        // Close when a link is clicked (mobile)
+        document.getElementById('navLinks').querySelectorAll('a').forEach(function (a) {
             a.addEventListener('click', function () {
-                document.getElementById('navDrawer').classList.remove('open');
-                document.getElementById('navHamburger').classList.remove('open');
+                // Only auto-close on small screens where it was toggled open
+                if (window.innerWidth < 769) {
+                    document.getElementById('navLinks').classList.remove('open');
+                    document.getElementById('navToggle').classList.remove('open');
+                }
             });
         });
     </script>

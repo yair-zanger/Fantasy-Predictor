@@ -647,15 +647,21 @@ def debug_page():
 @app.route('/logout')
 def logout():
     """Logout user"""
-    # Clear token file
-    if os.path.exists('yahoo_token.json'):
-        os.remove('yahoo_token.json')
-    
-    # Reset auth state
+    # Clear Flask session (works on Vercel + local)
+    from flask import session
+    session.pop('yahoo_token', None)
+    session.pop('pkce_code_verifier', None)
+    session.modified = True
+
+    # Also clear in-memory state
     auth.access_token = None
     auth.refresh_token = None
     auth.token_expiry = None
-    
+
+    # Remove local token file if present (local dev)
+    if os.path.exists('yahoo_token.json'):
+        os.remove('yahoo_token.json')
+
     return redirect(url_for('login'))
 
 
