@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 
-{% block title %}הליגות שלי - Fantasy Predictor{% endblock %}
+{% block title %}My Leagues - Fantasy Predictor{% endblock %}
 
 {% block extra_styles %}
 <style>
@@ -9,24 +9,24 @@
         opacity: 0;
         animation: fadeIn 0.5s ease-out forwards;
     }
-    
+
     .page-title {
         font-size: 2.5rem;
         font-weight: 900;
         margin-bottom: 0.5rem;
     }
-    
+
     .page-subtitle {
         color: var(--text-secondary);
         font-size: 1.1rem;
     }
-    
+
     .leagues-grid {
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
         gap: 1.5rem;
     }
-    
+
     .league-card {
         background: var(--bg-card);
         border: 1px solid var(--border-color);
@@ -40,36 +40,47 @@
         opacity: 0;
         animation: fadeIn 0.5s ease-out forwards;
     }
-    
-    .league-card:nth-child(1) { animation-delay: 0.1s; }
-    .league-card:nth-child(2) { animation-delay: 0.2s; }
-    .league-card:nth-child(3) { animation-delay: 0.3s; }
-    .league-card:nth-child(4) { animation-delay: 0.4s; }
-    
+
+    .league-card:nth-child(1) {
+        animation-delay: 0.1s;
+    }
+
+    .league-card:nth-child(2) {
+        animation-delay: 0.2s;
+    }
+
+    .league-card:nth-child(3) {
+        animation-delay: 0.3s;
+    }
+
+    .league-card:nth-child(4) {
+        animation-delay: 0.4s;
+    }
+
     .league-card:hover {
         transform: translateY(-5px);
         box-shadow: 0 15px 40px rgba(255, 107, 53, 0.15);
         border-color: var(--accent-orange);
     }
-    
+
     .league-header {
         display: flex;
         justify-content: space-between;
         align-items: flex-start;
         margin-bottom: 1rem;
     }
-    
+
     .league-name {
         font-size: 1.25rem;
         font-weight: 700;
         margin-bottom: 0.25rem;
     }
-    
+
     .league-type {
         color: var(--text-secondary);
         font-size: 0.875rem;
     }
-    
+
     .league-badge {
         background: linear-gradient(135deg, var(--accent-orange), #ff8f35);
         color: white;
@@ -78,7 +89,7 @@
         font-size: 0.75rem;
         font-weight: 600;
     }
-    
+
     .league-stats {
         display: grid;
         grid-template-columns: repeat(3, 1fr);
@@ -87,29 +98,29 @@
         padding-top: 1rem;
         border-top: 1px solid var(--border-color);
     }
-    
+
     .league-stat {
         text-align: center;
     }
-    
+
     .league-stat-value {
         font-size: 1.5rem;
         font-weight: 700;
         color: var(--accent-blue);
     }
-    
+
     .league-stat-label {
         font-size: 0.75rem;
         color: var(--text-muted);
         margin-top: 0.25rem;
     }
-    
+
     .no-leagues {
         text-align: center;
         padding: 4rem 2rem;
         color: var(--text-secondary);
     }
-    
+
     .no-leagues-icon {
         font-size: 4rem;
         margin-bottom: 1rem;
@@ -119,8 +130,8 @@
 
 {% block content %}
 <div class="page-header">
-    <h1 class="page-title">🏀 הליגות שלי</h1>
-    <p class="page-subtitle">בחר ליגה כדי לראות חיזוי למאצ'אפ השבועי</p>
+    <h1 class="page-title">🏀 My Leagues</h1>
+    <p class="page-subtitle">Select a league to view your weekly matchup prediction</p>
 </div>
 
 {% if leagues %}
@@ -132,20 +143,20 @@
                 <div class="league-name">{{ league.name }}</div>
                 <div class="league-type">Head-to-Head | 9-CAT</div>
             </div>
-            <span class="league-badge">שבוע {{ league.current_week }}</span>
+            <span class="league-badge">Week {{ league.current_week }}</span>
         </div>
         <div class="league-stats">
             <div class="league-stat">
                 <div class="league-stat-value">{{ league.num_teams }}</div>
-                <div class="league-stat-label">קבוצות</div>
+                <div class="league-stat-label">Teams</div>
             </div>
             <div class="league-stat">
                 <div class="league-stat-value">{{ league.current_week }}</div>
-                <div class="league-stat-label">שבוע נוכחי</div>
+                <div class="league-stat-label">Current Week</div>
             </div>
             <div class="league-stat">
                 <div class="league-stat-value">{{ league.end_week }}</div>
-                <div class="league-stat-label">סה"כ שבועות</div>
+                <div class="league-stat-label">Total Weeks</div>
             </div>
         </div>
     </a>
@@ -154,8 +165,8 @@
 {% else %}
 <div class="no-leagues">
     <div class="no-leagues-icon">🔍</div>
-    <h2>לא נמצאו ליגות</h2>
-    <p>נראה שאין לך ליגות פעילות ב-Yahoo Fantasy Basketball</p>
+    <h2>No leagues found</h2>
+    <p>It seems you have no active leagues in Yahoo Fantasy Basketball</p>
 </div>
 {% endif %}
 {% endblock %}

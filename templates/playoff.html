@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 
-{% block title %}שבוע פלייאוף - Fantasy Predictor{% endblock %}
+{% block title %}Playoff Week - Fantasy Predictor{% endblock %}
 
 {% block extra_styles %}
 <style>
@@ -14,18 +14,25 @@
         opacity: 0;
         animation: fadeIn 0.5s ease-out forwards;
     }
-    
+
     .playoff-icon {
         font-size: 6rem;
         margin-bottom: 1.5rem;
         animation: bounce 2s infinite;
     }
-    
+
     @keyframes bounce {
-        0%, 100% { transform: translateY(0); }
-        50% { transform: translateY(-10px); }
+
+        0%,
+        100% {
+            transform: translateY(0);
+        }
+
+        50% {
+            transform: translateY(-10px);
+        }
     }
-    
+
     .playoff-title {
         font-size: 2.5rem;
         font-weight: 900;
@@ -35,7 +42,7 @@
         -webkit-text-fill-color: transparent;
         background-clip: text;
     }
-    
+
     .playoff-message {
         color: var(--text-secondary);
         font-size: 1.2rem;
@@ -43,7 +50,7 @@
         margin-bottom: 2rem;
         line-height: 1.6;
     }
-    
+
     .playoff-week-badge {
         display: inline-block;
         background: linear-gradient(135deg, var(--accent-orange), #ff8f35);
@@ -54,7 +61,7 @@
         font-size: 1.1rem;
         margin-bottom: 2rem;
     }
-    
+
     .playoff-info {
         background: var(--bg-card);
         border: 1px solid var(--border-color);
@@ -63,26 +70,26 @@
         margin-bottom: 2rem;
         max-width: 500px;
     }
-    
+
     .playoff-info-title {
         font-weight: 700;
         margin-bottom: 1rem;
         color: var(--accent-yellow);
     }
-    
+
     .playoff-info-text {
         color: var(--text-secondary);
         font-size: 0.95rem;
         line-height: 1.6;
     }
-    
+
     .playoff-actions {
         display: flex;
         gap: 1rem;
         flex-wrap: wrap;
         justify-content: center;
     }
-    
+
     /* Week Selector for navigation */
     .week-nav {
         display: flex;
@@ -91,7 +98,7 @@
         gap: 1rem;
         margin-bottom: 2rem;
     }
-    
+
     .week-nav-btn {
         display: flex;
         align-items: center;
@@ -107,19 +114,19 @@
         transition: all 0.3s;
         text-decoration: none;
     }
-    
+
     .week-nav-btn:hover:not(.disabled) {
         background: var(--accent-orange);
         border-color: var(--accent-orange);
         transform: scale(1.05);
     }
-    
+
     .week-nav-btn.disabled {
         opacity: 0.3;
         cursor: not-allowed;
         pointer-events: none;
     }
-    
+
     .week-current {
         background: var(--bg-card);
         border: 2px solid var(--accent-orange);
@@ -132,54 +139,56 @@
 
 {% block content %}
 <a href="{{ url_for('dashboard') }}" class="btn btn-secondary" style="margin-bottom: 1.5rem; display: inline-block;">
-    ← חזרה לליגות
+    ← Back to Leagues
 </a>
 
 <div class="playoff-container">
     <div class="playoff-icon">🏆</div>
-    <span class="playoff-week-badge">שבוע {{ selected_week }}</span>
-    <h1 class="playoff-title">שבוע פלייאוף!</h1>
+    <span class="playoff-week-badge">Week {{ selected_week }}</span>
+    <h1 class="playoff-title">Playoff Week! 🏆</h1>
     <p class="playoff-message">{{ message }}</p>
-    
+
     <div class="playoff-info">
-        <div class="playoff-info-title">🔮 מה זה אומר?</div>
+        <div class="playoff-info-title">🔮 What does this mean?</div>
         <div class="playoff-info-text">
-            בשבועות הפלייאוף, הזיווגים נקבעים לפי התוצאות של השבועות הקודמים.
+            During playoff weeks, matchups are determined by previous weeks' results.
             <br><br>
-            כרגע היריב שלך עדיין לא נקבע - חזור מאוחר יותר כשהפלייאוף יתחיל!
+            Your opponent has not been determined yet — check back when the playoffs begin!
         </div>
     </div>
-    
+
     <!-- Week Navigation -->
     <div class="week-nav">
         {% if selected_week > start_week %}
-        <a href="{{ url_for('predict', league_key=league_key, week=selected_week - 1) }}" class="week-nav-btn" title="שבוע קודם">
-            →
-        </a>
-        {% else %}
-        <span class="week-nav-btn disabled">→</span>
-        {% endif %}
-        
-        <div class="week-current">
-            שבוע {{ selected_week }} מתוך {{ end_week }}
-        </div>
-        
-        {% if selected_week < end_week %}
-        <a href="{{ url_for('predict', league_key=league_key, week=selected_week + 1) }}" class="week-nav-btn" title="שבוע הבא">
+        <a href="{{ url_for('predict', league_key=league_key, week=selected_week - 1) }}" class="week-nav-btn"
+            title="Previous Week">
             ←
         </a>
         {% else %}
         <span class="week-nav-btn disabled">←</span>
         {% endif %}
+
+        <div class="week-current">
+            Week {{ selected_week }} of {{ end_week }}
+        </div>
+
+        {% if selected_week < end_week %} <a
+            href="{{ url_for('predict', league_key=league_key, week=selected_week + 1) }}" class="week-nav-btn"
+            title="Next Week">
+            →
+            </a>
+            {% else %}
+            <span class="week-nav-btn disabled">→</span>
+            {% endif %}
     </div>
-    
+
     <div class="playoff-actions">
-        {% if current_week < selected_week %}
-        <a href="{{ url_for('predict', league_key=league_key, week=current_week) }}" class="btn btn-primary">
-            חזור לשבוע הנוכחי ({{ current_week }})
-        </a>
-        {% endif %}
-        <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">חזרה לליגות</a>
+        {% if current_week < selected_week %} <a
+            href="{{ url_for('predict', league_key=league_key, week=current_week) }}" class="btn btn-primary">
+            Back to Current Week ({{ current_week }})
+            </a>
+            {% endif %}
+            <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">Back to Leagues</a>
     </div>
 </div>
 {% endblock %}

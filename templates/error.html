@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 
-{% block title %}שגיאה - Fantasy Predictor{% endblock %}
+{% block title %}Error - Fantasy Predictor{% endblock %}
 
 {% block extra_styles %}
 <style>
@@ -12,26 +12,36 @@
         min-height: 60vh;
         text-align: center;
     }
-    
+
     .error-icon {
         font-size: 6rem;
         margin-bottom: 1.5rem;
         animation: shake 0.5s ease-in-out;
     }
-    
+
     @keyframes shake {
-        0%, 100% { transform: translateX(0); }
-        25% { transform: translateX(-10px); }
-        75% { transform: translateX(10px); }
+
+        0%,
+        100% {
+            transform: translateX(0);
+        }
+
+        25% {
+            transform: translateX(-10px);
+        }
+
+        75% {
+            transform: translateX(10px);
+        }
     }
-    
+
     .error-title {
         font-size: 2rem;
         font-weight: 700;
         margin-bottom: 1rem;
         color: var(--accent-red);
     }
-    
+
     .error-message {
         color: var(--text-secondary);
         max-width: 500px;
@@ -44,7 +54,7 @@
         font-size: 0.9rem;
         word-break: break-word;
     }
-    
+
     .error-actions {
         display: flex;
         gap: 1rem;
@@ -55,11 +65,11 @@
 {% block content %}
 <div class="error-container">
     <div class="error-icon">😕</div>
-    <h1 class="error-title">משהו השתבש</h1>
+    <h1 class="error-title">Something went wrong</h1>
     <div class="error-message">{{ error }}</div>
     <div class="error-actions">
-        <a href="{{ url_for('dashboard') }}" class="btn btn-primary">חזרה לדף הבית</a>
-        <a href="{{ url_for('login') }}" class="btn btn-secondary">התחבר מחדש</a>
+        <a href="{{ url_for('dashboard') }}" class="btn btn-primary">Back to Home</a>
+        <a href="{{ url_for('login') }}" class="btn btn-secondary">Login Again</a>
     </div>
 </div>
 {% endblock %}

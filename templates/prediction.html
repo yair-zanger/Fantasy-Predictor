@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 
-{% block title %}חיזוי מאצ'אפ - Fantasy Predictor{% endblock %}
+{% block title %}Matchup Prediction - Fantasy Predictor{% endblock %}
 
 {% block extra_styles %}
 <style>
@@ -10,7 +10,7 @@
         opacity: 0;
         animation: fadeIn 0.5s ease-out forwards;
     }
-    
+
     .week-badge {
         display: inline-block;
         background: var(--accent-orange);
@@ -20,7 +20,7 @@
         font-weight: 700;
         margin-bottom: 1rem;
     }
-    
+
     /* Week Selector */
     .week-selector {
         display: flex;
@@ -33,7 +33,7 @@
         position: relative;
         z-index: 1000;
     }
-    
+
     .week-nav-btn {
         display: flex;
         align-items: center;
@@ -49,19 +49,19 @@
         transition: all 0.3s;
         text-decoration: none;
     }
-    
+
     .week-nav-btn:hover:not(.disabled) {
         background: var(--accent-orange);
         border-color: var(--accent-orange);
         transform: scale(1.05);
     }
-    
+
     .week-nav-btn.disabled {
         opacity: 0.3;
         cursor: not-allowed;
         pointer-events: none;
     }
-    
+
     /* Refresh Button */
     .refresh-btn {
         display: flex;
@@ -77,31 +77,36 @@
         transition: all 0.3s;
         margin-left: 1rem;
     }
-    
+
     .refresh-btn:hover {
         background: #27ae60;
         transform: translateY(-2px);
         box-shadow: 0 4px 12px rgba(46, 213, 115, 0.3);
     }
-    
+
     .refresh-btn:active {
         transform: translateY(0);
     }
-    
+
     .refresh-btn.refreshing .refresh-icon {
         animation: spin 1s linear infinite;
     }
-    
+
     @keyframes spin {
-        from { transform: rotate(0deg); }
-        to { transform: rotate(360deg); }
+        from {
+            transform: rotate(0deg);
+        }
+
+        to {
+            transform: rotate(360deg);
+        }
     }
-    
+
     .week-dropdown-container {
         position: relative;
         z-index: 1000;
     }
-    
+
     .week-dropdown-btn {
         display: flex;
         align-items: center;
@@ -118,16 +123,16 @@
         min-width: 180px;
         justify-content: center;
     }
-    
+
     .week-dropdown-btn:hover {
         background: rgba(255, 107, 53, 0.1);
     }
-    
+
     .week-dropdown-btn .week-label {
         color: var(--text-secondary);
         font-weight: 400;
     }
-    
+
     .week-dropdown-btn .current-indicator {
         background: var(--accent-green);
         color: white;
@@ -136,7 +141,7 @@
         border-radius: 10px;
         margin-right: 0.5rem;
     }
-    
+
     .week-dropdown {
         position: absolute;
         top: calc(100% + 8px);
@@ -153,12 +158,12 @@
         display: none;
         z-index: 9999;
     }
-    
+
     .week-dropdown.show {
         display: block;
         animation: fadeIn 0.2s ease-out;
     }
-    
+
     .week-option {
         display: flex;
         align-items: center;
@@ -169,20 +174,20 @@
         text-decoration: none;
         transition: background 0.2s;
     }
-    
+
     .week-option:hover {
         background: var(--bg-secondary);
     }
-    
+
     .week-option.active {
         background: var(--accent-orange);
         color: white;
     }
-    
+
     .week-option.current-week {
         border: 1px solid var(--accent-green);
     }
-    
+
     .week-option .badge {
         font-size: 0.7rem;
         padding: 0.15rem 0.5rem;
@@ -190,22 +195,22 @@
         background: var(--accent-green);
         color: white;
     }
-    
+
     .week-option.active .badge {
         background: white;
         color: var(--accent-orange);
     }
-    
+
     .week-option .badge.playoff-badge {
         background: var(--accent-red);
         color: white;
     }
-    
+
     .week-option.active .badge.playoff-badge {
         background: white;
         color: var(--accent-red);
     }
-    
+
     .playoff-indicator {
         background: var(--accent-red);
         color: white;
@@ -214,22 +219,22 @@
         border-radius: 10px;
         margin-right: 0.5rem;
     }
-    
+
     .week-option.past-week {
         opacity: 0.7;
     }
-    
+
     .week-option .badge.past-badge {
         background: var(--text-muted);
         color: white;
     }
-    
+
     .matchup-title {
         font-size: 2rem;
         font-weight: 900;
         margin-bottom: 0.5rem;
     }
-    
+
     /* Score Display */
     .score-container {
         display: flex;
@@ -246,47 +251,47 @@
         position: relative;
         z-index: 1;
     }
-    
+
     .team-score {
         text-align: center;
         flex: 1;
     }
-    
+
     .team-name {
         font-size: 1.25rem;
         font-weight: 600;
         margin-bottom: 0.5rem;
         color: var(--text-secondary);
     }
-    
+
     .team-name.winner {
         color: var(--accent-green);
     }
-    
+
     .score-number {
         font-size: 4rem;
         font-weight: 900;
         line-height: 1;
     }
-    
+
     .score-number.win {
         background: linear-gradient(135deg, var(--accent-green), #34d399);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         background-clip: text;
     }
-    
+
     .score-number.lose {
         color: var(--text-muted);
     }
-    
+
     .vs-divider {
         font-size: 1.5rem;
         font-weight: 700;
         color: var(--text-muted);
         padding: 1rem;
     }
-    
+
     .prediction-result {
         text-align: center;
         font-size: 1.25rem;
@@ -296,29 +301,29 @@
         border-radius: 10px;
         display: inline-block;
     }
-    
+
     .prediction-result.win {
         background: rgba(16, 185, 129, 0.2);
         color: var(--accent-green);
     }
-    
+
     .prediction-result.lose {
         background: rgba(239, 68, 68, 0.2);
         color: var(--accent-red);
     }
-    
+
     .prediction-result.tie {
         background: rgba(245, 158, 11, 0.2);
         color: var(--accent-yellow);
     }
-    
+
     /* Categories Table */
     .categories-section {
         margin-top: 2rem;
         opacity: 0;
         animation: fadeIn 0.5s ease-out 0.4s forwards;
     }
-    
+
     .section-title {
         font-size: 1.5rem;
         font-weight: 700;
@@ -327,7 +332,7 @@
         align-items: center;
         gap: 0.5rem;
     }
-    
+
     .categories-table {
         width: 100%;
         border-collapse: collapse;
@@ -336,13 +341,13 @@
         overflow: hidden;
         border: 1px solid var(--border-color);
     }
-    
+
     .categories-table th,
     .categories-table td {
         padding: 1rem;
         text-align: center;
     }
-    
+
     .categories-table th {
         background: var(--bg-secondary);
         font-weight: 600;
@@ -350,34 +355,34 @@
         font-size: 0.875rem;
         text-transform: uppercase;
     }
-    
+
     .categories-table tr:not(:last-child) td {
         border-bottom: 1px solid var(--border-color);
     }
-    
+
     .categories-table td:first-child {
         font-weight: 700;
         text-align: right;
         color: var(--text-primary);
     }
-    
+
     .cat-value {
         font-weight: 600;
     }
-    
+
     .cat-value.winner {
         color: var(--accent-green);
         font-weight: 700;
     }
-    
+
     .cat-value.loser {
         color: var(--text-muted);
     }
-    
+
     .cat-winner {
         font-size: 1.25rem;
     }
-    
+
     /* Current Stats Inline */
     .current-inline {
         font-size: 0.75rem;
@@ -385,33 +390,33 @@
         margin-top: 3px;
         font-weight: 600;
     }
-    
+
     /* Players Section */
     .players-section {
         margin-top: 2rem;
         opacity: 0;
         animation: fadeIn 0.5s ease-out 0.6s forwards;
     }
-    
+
     .teams-grid {
         display: grid;
         grid-template-columns: repeat(2, 1fr);
         gap: 1.5rem;
     }
-    
+
     @media (max-width: 900px) {
         .teams-grid {
             grid-template-columns: 1fr;
         }
     }
-    
+
     .team-card {
         background: var(--bg-card);
         border-radius: 16px;
         border: 1px solid var(--border-color);
         overflow: hidden;
     }
-    
+
     .team-card-header {
         background: var(--bg-secondary);
         padding: 1rem 1.5rem;
@@ -420,22 +425,22 @@
         justify-content: space-between;
         align-items: center;
     }
-    
+
     .team-card-header.my-team {
         border-right: 4px solid var(--accent-orange);
     }
-    
+
     .team-card-header.opponent {
         border-right: 4px solid var(--accent-blue);
     }
-    
+
     .team-games-summary {
         font-size: 0.8rem;
         color: var(--text-secondary);
         margin-top: 4px;
         font-weight: 400;
     }
-    
+
     .player-row {
         display: flex;
         justify-content: space-between;
@@ -443,45 +448,45 @@
         padding: 0.75rem 1rem;
         border-bottom: 1px solid var(--border-color);
     }
-    
+
     .player-row:last-child {
         border-bottom: none;
     }
-    
+
     .player-info {
         display: flex;
         align-items: flex-start;
         gap: 0.5rem;
         width: 100%;
     }
-    
+
     .player-status {
         width: 10px;
         height: 10px;
         border-radius: 50%;
     }
-    
+
     .player-status.healthy {
         background: var(--accent-green);
     }
-    
+
     .player-status.questionable {
         background: var(--accent-yellow);
     }
-    
+
     .player-status.out {
         background: var(--accent-red);
     }
-    
+
     .player-name {
         font-weight: 500;
     }
-    
+
     .player-position {
         color: var(--text-muted);
         font-size: 0.8rem;
     }
-    
+
     .player-games {
         background: var(--bg-secondary);
         padding: 0.25rem 0.75rem;
@@ -489,7 +494,7 @@
         font-size: 0.875rem;
         font-weight: 600;
     }
-    
+
     /* Weekly Schedule Display */
     .weekly-schedule {
         display: flex;
@@ -497,7 +502,7 @@
         margin-top: 0.5rem;
         flex-wrap: wrap;
     }
-    
+
     .day-slot {
         display: flex;
         flex-direction: column;
@@ -511,25 +516,25 @@
         transition: all 0.2s;
         position: relative;
     }
-    
+
     .day-slot.has-game {
         background: rgba(16, 185, 129, 0.15);
         border-color: var(--accent-green);
     }
-    
+
     .day-slot.no-game {
         opacity: 0.5;
     }
-    
+
     .day-slot.is-today {
         border-color: var(--accent-orange);
         border-width: 2px;
     }
-    
+
     .day-slot.is-past {
         opacity: 0.6;
     }
-    
+
     .day-slot.is-past.has-game::after {
         content: '✓';
         position: absolute;
@@ -545,74 +550,74 @@
         align-items: center;
         justify-content: center;
     }
-    
+
     .day-slot .day-date {
         font-weight: 600;
         color: var(--text-secondary);
         margin-bottom: 2px;
         font-size: 0.6rem;
     }
-    
+
     .day-slot.has-game .day-date {
         color: var(--accent-green);
     }
-    
+
     .day-slot.is-today .day-date {
         color: var(--accent-orange);
     }
-    
+
     .day-slot .game-time {
         color: var(--accent-orange);
         font-weight: 700;
         font-size: 0.6rem;
     }
-    
+
     .day-slot .opponent {
         color: var(--text-primary);
         font-weight: 600;
         font-size: 0.6rem;
     }
-    
+
     .day-slot .home-away {
         color: var(--text-muted);
         font-size: 0.55rem;
     }
-    
+
     .day-slot .no-game-indicator {
         color: var(--text-muted);
         font-size: 0.7rem;
     }
-    
+
     .games-summary {
         font-size: 0.75rem;
         color: var(--text-secondary);
         margin-top: 4px;
         text-align: center;
     }
-    
+
     .games-summary strong {
         color: var(--accent-green);
     }
-    
+
     /* Responsive for weekly schedule */
     @media (max-width: 600px) {
         .weekly-schedule {
             gap: 2px;
         }
-        
+
         .day-slot {
             min-width: 36px;
             padding: 3px 2px;
             font-size: 0.6rem;
         }
-        
+
         .day-slot .game-time,
         .day-slot .opponent,
         .day-slot .home-away {
             font-size: 0.55rem;
         }
     }
-    
+
     .player-il-badge {
         background: var(--accent-red);
         color: white;
@@ -622,7 +627,7 @@
         font-weight: 700;
         margin-right: 0.5rem;
     }
-    
+
     .player-slot-badge {
         background: var(--bg-secondary);
         color: var(--accent-blue);
@@ -636,53 +641,53 @@
         text-align: center;
         display: inline-block;
     }
-    
+
     .player-slot-badge.bench {
         color: var(--text-muted);
         border-color: var(--text-muted);
     }
-    
+
     .player-slot-badge.il {
         background: var(--accent-red);
         color: white;
         border-color: var(--accent-red);
     }
-    
+
     .player-row.on-il {
         opacity: 0.6;
         background: rgba(239, 68, 68, 0.05);
     }
-    
+
     .player-row.on-il .player-name {
         text-decoration: line-through;
         color: var(--text-muted);
     }
-    
+
     .player-game-today {
         font-size: 0.7rem;
         color: var(--accent-green);
         margin-top: 2px;
     }
-    
+
     .player-game-today .game-time {
         color: var(--accent-orange);
         font-weight: 600;
     }
-    
+
     .player-game-today .opponent {
         color: var(--text-secondary);
     }
-    
+
     .player-game-today .at-home {
         color: var(--accent-blue);
     }
-    
+
     .no-game-today {
         font-size: 0.7rem;
         color: var(--text-muted);
         margin-top: 2px;
     }
-    
+
     /* Injury Alert */
     .injury-alert {
         background: rgba(239, 68, 68, 0.1);
@@ -691,7 +696,7 @@
         padding: 1rem 1.5rem;
         margin-top: 1.5rem;
     }
-    
+
     .injury-alert-title {
         color: var(--accent-red);
         font-weight: 700;
@@ -700,21 +705,22 @@
         align-items: center;
         gap: 0.5rem;
     }
-    
+
     .injury-list {
         list-style: none;
     }
-    
+
     .injury-list li {
         padding: 0.25rem 0;
         color: var(--text-secondary);
     }
-    
+
     .back-btn {
         margin-bottom: 1.5rem;
         opacity: 0;
         animation: fadeIn 0.3s ease-out forwards;
     }
+
     /* Side Menu */
     .menu-toggle {
         position: fixed;
@@ -734,11 +740,11 @@
         gap: 5px;
         transition: all 0.3s;
     }
-    
+
     .menu-toggle:hover {
         background: var(--accent-orange);
     }
-    
+
     .menu-toggle span {
         width: 24px;
         height: 3px;
@@ -746,23 +752,23 @@
         border-radius: 2px;
         transition: all 0.3s;
     }
-    
+
     .menu-toggle:hover span {
         background: white;
     }
-    
+
     .menu-toggle.open span:nth-child(1) {
         transform: rotate(45deg) translate(5px, 5px);
     }
-    
+
     .menu-toggle.open span:nth-child(2) {
         opacity: 0;
     }
-    
+
     .menu-toggle.open span:nth-child(3) {
         transform: rotate(-45deg) translate(6px, -6px);
     }
-    
+
     .side-menu {
         position: fixed;
         top: 0;
@@ -776,11 +782,11 @@
         padding: 5rem 1.5rem 2rem;
         overflow-y: auto;
     }
-    
+
     .side-menu.open {
         right: 0;
     }
-    
+
     .side-menu-overlay {
         position: fixed;
         top: 0;
@@ -793,12 +799,12 @@
         visibility: hidden;
         transition: all 0.3s;
     }
-    
+
     .side-menu-overlay.open {
         opacity: 1;
         visibility: visible;
     }
-    
+
     .side-menu-title {
         font-size: 1.2rem;
         font-weight: 700;
@@ -807,7 +813,7 @@
         padding-bottom: 0.75rem;
         border-bottom: 1px solid var(--border-color);
     }
-    
+
     .nav-link {
         display: flex;
         align-items: center;
@@ -851,83 +857,83 @@
 
 <!-- Side Menu -->
 <div class="side-menu" id="sideMenu">
-    <div class="side-menu-title">📋 ניווט</div>
+    <div class="side-menu-title">📋 Navigation</div>
     <a href="{{ url_for('dashboard') }}" class="nav-link">
-        🏀 כל הליגות
+        🏀 All Leagues
     </a>
     <a href="{{ url_for('predict', league_key=league_key, week=selected_week) }}" class="nav-link active">
-        🎯 המאצ'אפ שלי
+        🎯 My Matchup
     </a>
     <a href="{{ url_for('predict_all', league_key=league_key, week=selected_week) }}" class="nav-link">
-        📊 כל המאצ'אפים
+        📊 All Matchups
     </a>
     <a href="{{ url_for('standings', league_key=league_key) }}" class="nav-link">
-        🏆 טבלת הליגה
+        🏆 League Standings
     </a>
 </div>
 
 <div class="prediction-header">
     {% if prediction.is_past_week %}
-    <h1 class="matchup-title">📊 תוצאות מאצ'אפ</h1>
+    <h1 class="matchup-title">📊 Matchup Results</h1>
     {% else %}
-    <h1 class="matchup-title">🔮 חיזוי מאצ'אפ</h1>
+    <h1 class="matchup-title">🔮 Matchup Prediction</h1>
     {% endif %}
 </div>
 
 <!-- Week Selector -->
 <div class="week-selector">
     {% if selected_week > start_week %}
-    <a href="{{ url_for('predict', league_key=league_key, week=selected_week - 1) }}" class="week-nav-btn" title="שבוע קודם">
-        →
-    </a>
-    {% else %}
-    <span class="week-nav-btn disabled">→</span>
-    {% endif %}
-    
-    <div class="week-dropdown-container">
-        <button class="week-dropdown-btn" onclick="toggleWeekDropdown()">
-            <span class="week-label">שבוע</span>
-            <span>{{ selected_week }}</span>
-            {% if selected_week == current_week %}
-            <span class="current-indicator">נוכחי</span>
-            {% endif %}
-            {% if playoff_start_week and selected_week >= playoff_start_week %}
-            <span class="playoff-indicator">פלייאוף</span>
-            {% endif %}
-            <span style="font-size: 0.75rem;">▼</span>
-        </button>
-        
-        <div class="week-dropdown" id="weekDropdown">
-            {% for week_num in range(start_week, end_week + 1) %}
-            <a href="{{ url_for('predict', league_key=league_key, week=week_num) }}" 
-               class="week-option {% if week_num == selected_week %}active{% endif %} {% if week_num == current_week %}current-week{% endif %} {% if week_num < current_week %}past-week{% endif %}">
-                <span>שבוע {{ week_num }}</span>
-                {% if week_num < current_week %}
-                <span class="badge past-badge">הסתיים</span>
-                {% elif week_num == current_week %}
-                <span class="badge">נוכחי</span>
-                {% endif %}
-                {% if playoff_start_week and week_num >= playoff_start_week %}
-                <span class="badge playoff-badge">פלייאוף</span>
-                {% endif %}
-            </a>
-            {% endfor %}
-        </div>
-    </div>
-    
-    {% if selected_week < end_week %}
-    <a href="{{ url_for('predict', league_key=league_key, week=selected_week + 1) }}" class="week-nav-btn" title="שבוע הבא">
+    <a href="{{ url_for('predict', league_key=league_key, week=selected_week - 1) }}" class="week-nav-btn"
+        title="Previous Week">
         ←
     </a>
     {% else %}
     <span class="week-nav-btn disabled">←</span>
     {% endif %}
-    
-    <!-- Refresh Button -->
-    <button class="refresh-btn" onclick="refreshRoster()" title="רענן רוסטר מיאהו (שימושי אחרי drop/add)">
-        <span class="refresh-icon">🔄</span>
-        <span class="refresh-text">Refresh Roster</span>
-    </button>
+
+    <div class="week-dropdown-container">
+        <button class="week-dropdown-btn" onclick="toggleWeekDropdown()">
+            <span class="week-label">Week</span>
+            <span>{{ selected_week }}</span>
+            {% if selected_week == current_week %}
+            <span class="current-indicator">Current</span>
+            {% endif %}
+            {% if playoff_start_week and selected_week >= playoff_start_week %}
+            <span class="playoff-indicator">Playoffs</span>
+            {% endif %}
+            <span style="font-size: 0.75rem;">▼</span>
+        </button>
+
+        <div class="week-dropdown" id="weekDropdown">
+            {% for week_num in range(start_week, end_week + 1) %}
+            <a href="{{ url_for('predict', league_key=league_key, week=week_num) }}"
+                class="week-option {% if week_num == selected_week %}active{% endif %} {% if week_num == current_week %}current-week{% endif %} {% if week_num < current_week %}past-week{% endif %}">
+                <span>Week {{ week_num }}</span>
+                {% if week_num < current_week %} <span class="badge past-badge">Ended</span>
+                    {% elif week_num == current_week %}
+                    <span class="badge">Current</span>
+                    {% endif %}
+                    {% if playoff_start_week and week_num >= playoff_start_week %}
+                    <span class="badge playoff-badge">Playoffs</span>
+                    {% endif %}
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+
+    {% if selected_week < end_week %} <a href="{{ url_for('predict', league_key=league_key, week=selected_week + 1) }}"
+        class="week-nav-btn" title="Next Week">
+        →
+        </a>
+        {% else %}
+        <span class="week-nav-btn disabled">→</span>
+        {% endif %}
+
+        <!-- Refresh Button -->
+        <button class="refresh-btn" onclick="refreshRoster()" title="Refresh roster from Yahoo (useful after drop/add)">
+            <span class="refresh-icon">🔄</span>
+            <span class="refresh-text">Refresh Roster</span>
+        </button>
 </div>
 
 <!-- Score Display -->
@@ -936,18 +942,20 @@
         <div class="team-name {% if prediction.predicted_score[0] > prediction.predicted_score[1] %}winner{% endif %}">
             {{ prediction.my_team.team_name }}
         </div>
-        <div class="score-number {% if prediction.predicted_score[0] > prediction.predicted_score[1] %}win{% else %}lose{% endif %}">
+        <div
+            class="score-number {% if prediction.predicted_score[0] > prediction.predicted_score[1] %}win{% else %}lose{% endif %}">
             {{ prediction.predicted_score[0] }}
         </div>
     </div>
-    
+
     <div class="vs-divider">VS</div>
-    
+
     <div class="team-score">
         <div class="team-name {% if prediction.predicted_score[1] > prediction.predicted_score[0] %}winner{% endif %}">
             {{ prediction.opponent.team_name }}
         </div>
-        <div class="score-number {% if prediction.predicted_score[1] > prediction.predicted_score[0] %}win{% else %}lose{% endif %}">
+        <div
+            class="score-number {% if prediction.predicted_score[1] > prediction.predicted_score[0] %}win{% else %}lose{% endif %}">
             {{ prediction.predicted_score[1] }}
         </div>
     </div>
@@ -955,35 +963,35 @@
 
 <div style="text-align: center;">
     {% if prediction.is_past_week %}
-        {% if prediction.predicted_score[0] > prediction.predicted_score[1] %}
-            <span class="prediction-result win">✅ ניצחון!</span>
-        {% elif prediction.predicted_score[1] > prediction.predicted_score[0] %}
-            <span class="prediction-result lose">❌ הפסד</span>
-        {% else %}
-            <span class="prediction-result tie">➡️ תיקו</span>
-        {% endif %}
+    {% if prediction.predicted_score[0] > prediction.predicted_score[1] %}
+    <span class="prediction-result win">✅ Win!</span>
+    {% elif prediction.predicted_score[1] > prediction.predicted_score[0] %}
+    <span class="prediction-result lose">❌ Loss</span>
     {% else %}
-        {% if prediction.predicted_score[0] > prediction.predicted_score[1] %}
-            <span class="prediction-result win">✅ צפי לניצחון!</span>
-        {% elif prediction.predicted_score[1] > prediction.predicted_score[0] %}
-            <span class="prediction-result lose">⚠️ צפי להפסד</span>
-        {% else %}
-            <span class="prediction-result tie">➡️ צפי לתיקו</span>
-        {% endif %}
+    <span class="prediction-result tie">➡️ Tie</span>
+    {% endif %}
+    {% else %}
+    {% if prediction.predicted_score[0] > prediction.predicted_score[1] %}
+    <span class="prediction-result win">✅ Projected Win!</span>
+    {% elif prediction.predicted_score[1] > prediction.predicted_score[0] %}
+    <span class="prediction-result lose">⚠️ Projected Loss</span>
+    {% else %}
+    <span class="prediction-result tie">➡️ Projected Tie</span>
+    {% endif %}
     {% endif %}
 </div>
 
 <!-- Categories Breakdown -->
 <div class="categories-section">
-    <h2 class="section-title">📊 פירוט קטגוריות {% if prediction.is_past_week %}(תוצאות סופיות){% endif %}</h2>
-    
+    <h2 class="section-title">📊 Category Breakdown {% if prediction.is_past_week %}(Final Results){% endif %}</h2>
+
     <table class="categories-table">
         <thead>
             <tr>
-                <th>קטגוריה</th>
+                <th>Category</th>
                 <th>{{ prediction.my_team.team_name }}</th>
                 <th>{{ prediction.opponent.team_name }}</th>
-                <th>מנצח</th>
+                <th>Winner</th>
             </tr>
         </thead>
         <tbody>
@@ -992,36 +1000,39 @@
             {% set opp_val = prediction.opponent.total_projected.get(cat, 0) %}
             {% set winner = prediction.category_winners.get(cat, '') %}
             {% set actual_my = prediction.actual_my_stats.get(cat, 0) if prediction.actual_my_stats else 0 %}
-            {% set actual_opp = prediction.actual_opponent_stats.get(cat, 0) if prediction.actual_opponent_stats else 0 %}
+            {% set actual_opp = prediction.actual_opponent_stats.get(cat, 0) if prediction.actual_opponent_stats else 0
+            %}
             <tr>
                 <td>{{ cat }}</td>
                 <td class="cat-value {% if winner == 'my_team' %}winner{% elif winner == 'opponent' %}loser{% endif %}">
                     {% if cat in ['FG%', 'FT%'] %}
-                        {{ "%.1f"|format(my_val) }}%
+                    {{ "%.1f"|format(my_val) }}%
                     {% else %}
-                        {{ "%.1f"|format(my_val) }}
+                    {{ "%.1f"|format(my_val) }}
                     {% endif %}
                     {% if prediction.actual_my_stats %}
-                    <div class="current-inline">(נוכחי: {% if cat in ['FG%', 'FT%'] %}{{ "%.1f"|format(actual_my) }}%{% else %}{{ "%.0f"|format(actual_my) }}{% endif %})</div>
+                    <div class="current-inline">(Current: {% if cat in ['FG%', 'FT%'] %}{{ "%.1f"|format(actual_my)
+                        }}%{% else %}{{ "%.0f"|format(actual_my) }}{% endif %})</div>
                     {% endif %}
                 </td>
                 <td class="cat-value {% if winner == 'opponent' %}winner{% elif winner == 'my_team' %}loser{% endif %}">
                     {% if cat in ['FG%', 'FT%'] %}
-                        {{ "%.1f"|format(opp_val) }}%
+                    {{ "%.1f"|format(opp_val) }}%
                     {% else %}
-                        {{ "%.1f"|format(opp_val) }}
+                    {{ "%.1f"|format(opp_val) }}
                     {% endif %}
                     {% if prediction.actual_opponent_stats %}
-                    <div class="current-inline">(נוכחי: {% if cat in ['FG%', 'FT%'] %}{{ "%.1f"|format(actual_opp) }}%{% else %}{{ "%.0f"|format(actual_opp) }}{% endif %})</div>
+                    <div class="current-inline">(Current: {% if cat in ['FG%', 'FT%'] %}{{ "%.1f"|format(actual_opp)
+                        }}%{% else %}{{ "%.0f"|format(actual_opp) }}{% endif %})</div>
                     {% endif %}
                 </td>
                 <td class="cat-winner">
                     {% if winner == 'my_team' %}
-                        ✅
+                    ✅
                     {% elif winner == 'opponent' %}
-                        ❌
+                    ❌
                     {% else %}
-                        ➡️
+                    ➡️
                     {% endif %}
                 </td>
             </tr>
@@ -1033,106 +1044,114 @@
 <!-- Players Section -->
 {% if not prediction.is_past_week %}
 <div class="players-section">
-    <h2 class="section-title">👥 שחקנים ומשחקים השבוע</h2>
-    
+    <h2 class="section-title">👥 Players & Games This Week</h2>
+
     <div class="teams-grid">
         <!-- My Team -->
         <div class="team-card">
             <div class="team-card-header my-team">
                 <div>
                     <span>{{ prediction.my_team.team_name }}</span>
-                    <div class="team-games-summary">🏀 {{ prediction.my_team.remaining_games }} משחקים נותרו</div>
+                    <div class="team-games-summary">🏀 {{ prediction.my_team.remaining_games }} games remaining</div>
                 </div>
-                <span style="color: var(--accent-orange);">הקבוצה שלי</span>
+                <span style="color: var(--accent-orange);">My Team</span>
             </div>
             {% for player in prediction.my_team.players %}
             <div class="player-row {% if player.is_on_il %}on-il{% endif %}">
                 <div class="player-info" style="flex: 1;">
-                    <span class="player-slot-badge {% if player.is_on_il %}il{% elif player.roster_position == 'BN' %}bench{% endif %}">{{ player.roster_position or '?' }}</span>
-                    <span class="player-status {% if player.is_on_il %}out{% elif player.injury_adjustment == 1.0 %}healthy{% elif player.injury_adjustment == 0 %}out{% else %}questionable{% endif %}"></span>
+                    <span
+                        class="player-slot-badge {% if player.is_on_il %}il{% elif player.roster_position == 'BN' %}bench{% endif %}">{{
+                        player.roster_position or '?' }}</span>
+                    <span
+                        class="player-status {% if player.is_on_il %}out{% elif player.injury_adjustment == 1.0 %}healthy{% elif player.injury_adjustment == 0 %}out{% else %}questionable{% endif %}"></span>
                     <div style="flex: 1;">
                         <div class="player-name">{{ player.name }}</div>
                         <div class="player-position">{{ player.position }} | {{ player.team }}</div>
                         {% if player.is_on_il %}
-                        <div class="no-game-today" style="color: var(--accent-red);">🏥 לא נספר (IL)</div>
+                        <div class="no-game-today" style="color: var(--accent-red);">🏥 Not counted (IL)</div>
                         {% elif player.weekly_schedule %}
                         <div class="weekly-schedule">
                             {% for day in player.weekly_schedule %}
-                            <div class="day-slot {% if day.has_game %}has-game{% else %}no-game{% endif %} {% if day.is_today %}is-today{% endif %} {% if day.is_past %}is-past{% endif %}" title="{{ day.day_name }}">
+                            <div class="day-slot {% if day.has_game %}has-game{% else %}no-game{% endif %} {% if day.is_today %}is-today{% endif %} {% if day.is_past %}is-past{% endif %}"
+                                title="{{ day.day_name }}">
                                 <span class="day-date">{{ day.date[8:10] }}/{{ day.date[5:7] }}</span>
                                 {% if day.has_game %}
-                                    {% if day.time_israel %}
-                                    <span class="game-time">{{ day.time_israel }}</span>
-                                    {% endif %}
-                                    {% if day.opponent and day.opponent != '?' and day.opponent != None %}
-                                    <span class="opponent">{{ day.opponent }}</span>
-                                    {% if day.is_home is not none %}
-                                    <span class="home-away">{% if day.is_home %}בית{% else %}חוץ{% endif %}</span>
-                                    {% endif %}
-                                    {% else %}
-                                    <span class="opponent">🏀</span>
-                                    {% endif %}
+                                {% if day.time_israel %}
+                                <span class="game-time">{{ day.time_israel }}</span>
+                                {% endif %}
+                                {% if day.opponent and day.opponent != '?' and day.opponent != None %}
+                                <span class="opponent">{{ day.opponent }}</span>
+                                {% if day.is_home is not none %}
+                                <span class="home-away">{% if day.is_home %}Home{% else %}Away{% endif %}</span>
+                                {% endif %}
+                                {% else %}
+                                <span class="opponent">🏀</span>
+                                {% endif %}
                                 {% else %}
                                 <span class="no-game-indicator">-</span>
                                 {% endif %}
                             </div>
                             {% endfor %}
                         </div>
-                        <div class="games-summary">סה"כ <strong>{{ player.games_this_week }}</strong> משחקים</div>
+                        <div class="games-summary">Total <strong>{{ player.games_this_week }}</strong> games</div>
                         {% else %}
-                        <span class="player-games">🏀 {{ player.games_this_week }} משחקים</span>
+                        <span class="player-games">🏀 {{ player.games_this_week }} games</span>
                         {% endif %}
                     </div>
                 </div>
             </div>
             {% endfor %}
         </div>
-        
+
         <!-- Opponent Team -->
         <div class="team-card">
             <div class="team-card-header opponent">
                 <div>
                     <span>{{ prediction.opponent.team_name }}</span>
-                    <div class="team-games-summary">🏀 {{ prediction.opponent.remaining_games }} משחקים נותרו</div>
+                    <div class="team-games-summary">🏀 {{ prediction.opponent.remaining_games }} games remaining</div>
                 </div>
-                <span style="color: var(--accent-blue);">יריב</span>
+                <span style="color: var(--accent-blue);">Opponent</span>
             </div>
             {% for player in prediction.opponent.players %}
             <div class="player-row {% if player.is_on_il %}on-il{% endif %}">
                 <div class="player-info" style="flex: 1;">
-                    <span class="player-slot-badge {% if player.is_on_il %}il{% elif player.roster_position == 'BN' %}bench{% endif %}">{{ player.roster_position or '?' }}</span>
-                    <span class="player-status {% if player.is_on_il %}out{% elif player.injury_adjustment == 1.0 %}healthy{% elif player.injury_adjustment == 0 %}out{% else %}questionable{% endif %}"></span>
+                    <span
+                        class="player-slot-badge {% if player.is_on_il %}il{% elif player.roster_position == 'BN' %}bench{% endif %}">{{
+                        player.roster_position or '?' }}</span>
+                    <span
+                        class="player-status {% if player.is_on_il %}out{% elif player.injury_adjustment == 1.0 %}healthy{% elif player.injury_adjustment == 0 %}out{% else %}questionable{% endif %}"></span>
                     <div style="flex: 1;">
                         <div class="player-name">{{ player.name }}</div>
                         <div class="player-position">{{ player.position }} | {{ player.team }}</div>
                         {% if player.is_on_il %}
-                        <div class="no-game-today" style="color: var(--accent-red);">🏥 לא נספר (IL)</div>
+                        <div class="no-game-today" style="color: var(--accent-red);">🏥 Not counted (IL)</div>
                         {% elif player.weekly_schedule %}
                         <div class="weekly-schedule">
                             {% for day in player.weekly_schedule %}
-                            <div class="day-slot {% if day.has_game %}has-game{% else %}no-game{% endif %} {% if day.is_today %}is-today{% endif %} {% if day.is_past %}is-past{% endif %}" title="{{ day.day_name }}">
+                            <div class="day-slot {% if day.has_game %}has-game{% else %}no-game{% endif %} {% if day.is_today %}is-today{% endif %} {% if day.is_past %}is-past{% endif %}"
+                                title="{{ day.day_name }}">
                                 <span class="day-date">{{ day.date[8:10] }}/{{ day.date[5:7] }}</span>
                                 {% if day.has_game %}
-                                    {% if day.time_israel %}
-                                    <span class="game-time">{{ day.time_israel }}</span>
-                                    {% endif %}
-                                    {% if day.opponent and day.opponent != '?' and day.opponent != None %}
-                                    <span class="opponent">{{ day.opponent }}</span>
-                                    {% if day.is_home is not none %}
-                                    <span class="home-away">{% if day.is_home %}בית{% else %}חוץ{% endif %}</span>
-                                    {% endif %}
-                                    {% else %}
-                                    <span class="opponent">🏀</span>
-                                    {% endif %}
+                                {% if day.time_israel %}
+                                <span class="game-time">{{ day.time_israel }}</span>
+                                {% endif %}
+                                {% if day.opponent and day.opponent != '?' and day.opponent != None %}
+                                <span class="opponent">{{ day.opponent }}</span>
+                                {% if day.is_home is not none %}
+                                <span class="home-away">{% if day.is_home %}Home{% else %}Away{% endif %}</span>
+                                {% endif %}
+                                {% else %}
+                                <span class="opponent">🏀</span>
+                                {% endif %}
                                 {% else %}
                                 <span class="no-game-indicator">-</span>
                                 {% endif %}
                             </div>
                             {% endfor %}
                         </div>
-                        <div class="games-summary">סה"כ <strong>{{ player.games_this_week }}</strong> משחקים</div>
+                        <div class="games-summary">Total <strong>{{ player.games_this_week }}</strong> games</div>
                         {% else %}
-                        <span class="player-games">🏀 {{ player.games_this_week }} משחקים</span>
+                        <span class="player-games">🏀 {{ player.games_this_week }} games</span>
                         {% endif %}
                     </div>
                 </div>
@@ -1140,19 +1159,21 @@
             {% endfor %}
         </div>
     </div>
-    
+
     <!-- IL Players Alert -->
     {% set my_il = prediction.my_team.players | selectattr('is_on_il') | list %}
     {% set opp_il = prediction.opponent.players | selectattr('is_on_il') | list %}
-    
+
     {% if my_il or opp_il %}
-    <div class="injury-alert" style="border-color: var(--accent-yellow); background: rgba(245, 158, 11, 0.1); margin-bottom: 1rem;">
-        <div class="injury-alert-title" style="color: var(--accent-yellow);">🏥 שחקנים ב-IL (לא נספרים בחיזוי)</div>
+    <div class="injury-alert"
+        style="border-color: var(--accent-yellow); background: rgba(245, 158, 11, 0.1); margin-bottom: 1rem;">
+        <div class="injury-alert-title" style="color: var(--accent-yellow);">🏥 IL Players (not counted in projection)
+        </div>
         <ul class="injury-list">
             {% for player in my_il %}
             <li>
                 <span class="player-il-badge" style="display: inline-block;">{{ player.roster_position }}</span>
-                {{ player.name }} (שלך)
+                {{ player.name }} (Yours)
                 {% if player.status %} - {{ player.status }}{% endif %}
                 {% if player.injury_note %} - {{ player.injury_note }}{% endif %}
             </li>
@@ -1160,7 +1181,7 @@
             {% for player in opp_il %}
             <li>
                 <span class="player-il-badge" style="display: inline-block;">{{ player.roster_position }}</span>
-                {{ player.name }} (יריב)
+                {{ player.name }} (Opponent)
                 {% if player.status %} - {{ player.status }}{% endif %}
                 {% if player.injury_note %} - {{ player.injury_note }}{% endif %}
             </li>
@@ -1168,26 +1189,28 @@
         </ul>
     </div>
     {% endif %}
-    
+
     <!-- Injury Alerts (non-IL players with injury status) -->
-    {% set my_injured = prediction.my_team.players | rejectattr('is_on_il') | selectattr('injury_adjustment', 'lt', 1.0) | list %}
-    {% set opp_injured = prediction.opponent.players | rejectattr('is_on_il') | selectattr('injury_adjustment', 'lt', 1.0) | list %}
-    
+    {% set my_injured = prediction.my_team.players | rejectattr('is_on_il') | selectattr('injury_adjustment', 'lt', 1.0)
+    | list %}
+    {% set opp_injured = prediction.opponent.players | rejectattr('is_on_il') | selectattr('injury_adjustment', 'lt',
+    1.0) | list %}
+
     {% if my_injured or opp_injured %}
     <div class="injury-alert">
-        <div class="injury-alert-title">⚠️ שחקנים פצועים / מפוקפקים (ברוסטר הפעיל)</div>
+        <div class="injury-alert-title">⚠️ Injured / Questionable Players (active roster)</div>
         <ul class="injury-list">
             {% for player in my_injured %}
             <li>
                 {% if player.injury_adjustment == 0 %}🔴{% else %}🟡{% endif %}
-                {{ player.name }} (שלך) - {{ player.status }}
+                {{ player.name }} (Yours) - {{ player.status }}
                 {% if player.injury_note %} - {{ player.injury_note }}{% endif %}
             </li>
             {% endfor %}
             {% for player in opp_injured %}
             <li>
                 {% if player.injury_adjustment == 0 %}🔴{% else %}🟡{% endif %}
-                {{ player.name }} (יריב) - {{ player.status }}
+                {{ player.name }} (Opponent) - {{ player.status }}
                 {% if player.injury_note %} - {{ player.injury_note }}{% endif %}
             </li>
             {% endfor %}
@@ -1200,79 +1223,79 @@
 
 {% block scripts %}
 <script>
-function toggleSideMenu() {
-    const menu = document.getElementById('sideMenu');
-    const overlay = document.getElementById('menuOverlay');
-    const toggle = document.getElementById('menuToggle');
-    
-    menu.classList.toggle('open');
-    overlay.classList.toggle('open');
-    toggle.classList.toggle('open');
-}
+    function toggleSideMenu() {
+        const menu = document.getElementById('sideMenu');
+        const overlay = document.getElementById('menuOverlay');
+        const toggle = document.getElementById('menuToggle');
 
-function toggleWeekDropdown() {
-    const dropdown = document.getElementById('weekDropdown');
-    dropdown.classList.toggle('show');
-}
-
-// Close dropdown when clicking outside
-document.addEventListener('click', function(event) {
-    const dropdown = document.getElementById('weekDropdown');
-    const button = event.target.closest('.week-dropdown-btn');
-    
-    if (!button && dropdown.classList.contains('show')) {
-        dropdown.classList.remove('show');
+        menu.classList.toggle('open');
+        overlay.classList.toggle('open');
+        toggle.classList.toggle('open');
     }
-});
 
-// Keyboard navigation
-document.addEventListener('keydown', function(event) {
-    if (event.key === 'Escape') {
-        document.getElementById('weekDropdown').classList.remove('show');
+    function toggleWeekDropdown() {
+        const dropdown = document.getElementById('weekDropdown');
+        dropdown.classList.toggle('show');
     }
-});
 
-// Refresh roster from Yahoo (clear cache and reload)
-async function refreshRoster() {
-    const btn = document.querySelector('.refresh-btn');
-    const icon = btn.querySelector('.refresh-icon');
-    const text = btn.querySelector('.refresh-text');
-    
-    // Disable button and show loading state
-    btn.disabled = true;
-    btn.classList.add('refreshing');
-    text.textContent = 'מרענן...';
-    
-    try {
-        // Call API to clear cache
-        const response = await fetch('/api/clear-roster-cache');
-        const data = await response.json();
-        
-        if (data.success) {
-            // Show success feedback
-            text.textContent = 'הצלחה!';
-            icon.textContent = '✅';
-            
-            // Wait a moment, then reload the page
-            setTimeout(() => {
-                window.location.reload();
-            }, 500);
-        } else {
-            throw new Error('Failed to clear cache');
+    // Close dropdown when clicking outside
+    document.addEventListener('click', function (event) {
+        const dropdown = document.getElementById('weekDropdown');
+        const button = event.target.closest('.week-dropdown-btn');
+
+        if (!button && dropdown.classList.contains('show')) {
+            dropdown.classList.remove('show');
         }
-    } catch (error) {
-        console.error('Error refreshing roster:', error);
-        text.textContent = 'שגיאה';
-        icon.textContent = '❌';
-        
-        // Reset after 2 seconds
-        setTimeout(() => {
-            btn.disabled = false;
-            btn.classList.remove('refreshing');
-            text.textContent = 'Refresh Roster';
-            icon.textContent = '🔄';
-        }, 2000);
+    });
+
+    // Keyboard navigation
+    document.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape') {
+            document.getElementById('weekDropdown').classList.remove('show');
+        }
+    });
+
+    // Refresh roster from Yahoo (clear cache and reload)
+    async function refreshRoster() {
+        const btn = document.querySelector('.refresh-btn');
+        const icon = btn.querySelector('.refresh-icon');
+        const text = btn.querySelector('.refresh-text');
+
+        // Disable button and show loading state
+        btn.disabled = true;
+        btn.classList.add('refreshing');
+        text.textContent = 'Refreshing...';
+
+        try {
+            // Call API to clear cache
+            const response = await fetch('/api/clear-roster-cache');
+            const data = await response.json();
+
+            if (data.success) {
+                // Show success feedback
+                text.textContent = 'Done!';
+                icon.textContent = '✅';
+
+                // Wait a moment, then reload the page
+                setTimeout(() => {
+                    window.location.reload();
+                }, 500);
+            } else {
+                throw new Error('Failed to clear cache');
+            }
+        } catch (error) {
+            console.error('Error refreshing roster:', error);
+            text.textContent = 'Error';
+            icon.textContent = '❌';
+
+            // Reset after 2 seconds
+            setTimeout(() => {
+                btn.disabled = false;
+                btn.classList.remove('refreshing');
+                text.textContent = 'Refresh Roster';
+                icon.textContent = '🔄';
+            }, 2000);
+        }
     }
-}
 </script>
 {% endblock %}

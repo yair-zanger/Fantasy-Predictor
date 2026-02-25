@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 
-{% block title %}התחברות - Fantasy Predictor{% endblock %}
+{% block title %}Login - Fantasy Predictor{% endblock %}
 
 {% block extra_styles %}
 <style>
@@ -12,7 +12,7 @@
         min-height: 70vh;
         text-align: center;
     }
-    
+
     .login-card {
         background: var(--bg-card);
         border: 1px solid var(--border-color);
@@ -22,18 +22,25 @@
         width: 100%;
         animation: fadeIn 0.6s ease-out;
     }
-    
+
     .login-icon {
         font-size: 5rem;
         margin-bottom: 1.5rem;
         animation: bounce 2s infinite;
     }
-    
+
     @keyframes bounce {
-        0%, 100% { transform: translateY(0); }
-        50% { transform: translateY(-10px); }
+
+        0%,
+        100% {
+            transform: translateY(0);
+        }
+
+        50% {
+            transform: translateY(-10px);
+        }
     }
-    
+
     .login-title {
         font-size: 2rem;
         font-weight: 900;
@@ -43,13 +50,13 @@
         -webkit-text-fill-color: transparent;
         background-clip: text;
     }
-    
+
     .login-subtitle {
         color: var(--text-secondary);
         margin-bottom: 2rem;
         font-size: 1.1rem;
     }
-    
+
     .yahoo-btn {
         display: inline-flex;
         align-items: center;
@@ -65,17 +72,17 @@
         width: 100%;
         justify-content: center;
     }
-    
+
     .yahoo-btn:hover {
         transform: translateY(-3px);
         box-shadow: 0 10px 30px rgba(114, 14, 158, 0.4);
     }
-    
+
     .yahoo-btn svg {
         width: 24px;
         height: 24px;
     }
-    
+
     .features {
         margin-top: 3rem;
         display: grid;
@@ -84,17 +91,17 @@
         opacity: 0;
         animation: fadeIn 0.6s ease-out 0.3s forwards;
     }
-    
+
     .feature {
         text-align: center;
         padding: 1rem;
     }
-    
+
     .feature-icon {
         font-size: 2rem;
         margin-bottom: 0.5rem;
     }
-    
+
     .feature-text {
         color: var(--text-secondary);
         font-size: 0.9rem;
@@ -107,28 +114,29 @@
     <div class="login-card">
         <div class="login-icon">🏀</div>
         <h1 class="login-title">Fantasy Predictor</h1>
-        <p class="login-subtitle">חיזוי תוצאות מאצ'אפ שבועי ב-Yahoo Fantasy Basketball</p>
-        
+        <p class="login-subtitle">Weekly matchup prediction for Yahoo Fantasy Basketball</p>
+
         <a href="{{ url_for('auth_start') }}" class="yahoo-btn">
             <svg viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12 2C6.477 2 2 6.477 2 12c0 5.523 4.477 10 10 10s10-4.477 10-10c0-5.523-4.477-10-10-10zm4.89 5.89l-3.68 5.22v4.89h-2.42v-4.89L7.11 7.89h2.72l2.17 3.12 2.17-3.12h2.72z"/>
+                <path
+                    d="M12 2C6.477 2 2 6.477 2 12c0 5.523 4.477 10 10 10s10-4.477 10-10c0-5.523-4.477-10-10-10zm4.89 5.89l-3.68 5.22v4.89h-2.42v-4.89L7.11 7.89h2.72l2.17 3.12 2.17-3.12h2.72z" />
             </svg>
-            התחבר עם Yahoo
+            Login with Yahoo
         </a>
     </div>
-    
+
     <div class="features">
         <div class="feature">
             <div class="feature-icon">📊</div>
-            <div class="feature-text">חיזוי 9 קטגוריות</div>
+            <div class="feature-text">9-Category Prediction</div>
         </div>
         <div class="feature">
             <div class="feature-icon">🏥</div>
-            <div class="feature-text">מעקב פציעות</div>
+            <div class="feature-text">Injury Tracking</div>
         </div>
         <div class="feature">
             <div class="feature-icon">📅</div>
-            <div class="feature-text">לוח משחקים שבועי</div>
+            <div class="feature-text">Weekly Schedule</div>
         </div>
     </div>
 </div>

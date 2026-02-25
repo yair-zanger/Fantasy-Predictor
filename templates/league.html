@@ -7,17 +7,17 @@
     .league-header {
         margin-bottom: 2rem;
     }
-    
+
     .league-title {
         font-size: 2rem;
         font-weight: 900;
         margin-bottom: 0.5rem;
     }
-    
+
     .team-info {
         color: var(--text-secondary);
     }
-    
+
     .action-card {
         background: linear-gradient(135deg, var(--bg-card), var(--bg-secondary));
         border: 2px solid var(--accent-orange);
@@ -27,18 +27,18 @@
         max-width: 500px;
         margin: 2rem auto;
     }
-    
+
     .action-icon {
         font-size: 4rem;
         margin-bottom: 1rem;
     }
-    
+
     .action-title {
         font-size: 1.5rem;
         font-weight: 700;
         margin-bottom: 0.5rem;
     }
-    
+
     .action-description {
         color: var(--text-secondary);
         margin-bottom: 1.5rem;
@@ -48,23 +48,23 @@
 
 {% block content %}
 <a href="{{ url_for('dashboard') }}" class="btn btn-secondary" style="margin-bottom: 1.5rem;">
-    ← חזרה לליגות
+    ← Back to Leagues
 </a>
 
 <div class="league-header">
     <h1 class="league-title">{{ my_team.name }}</h1>
-    <p class="team-info">מנוהל על ידי: {{ my_team.manager }}</p>
+    <p class="team-info">Managed by: {{ my_team.manager }}</p>
 </div>
 
 <div class="action-card">
     <div class="action-icon">🔮</div>
-    <h2 class="action-title">צפה בחיזוי המאצ'אפ</h2>
+    <h2 class="action-title">View Matchup Prediction</h2>
     <p class="action-description">
-        קבל תחזית מפורטת למאצ'אפ השבועי שלך כולל סטטיסטיקות צפויות, 
-        מצב פציעות ותחזית לכל קטגוריה.
+        Get a detailed prediction for your weekly matchup, including projected stats,
+        injury status, and a forecast for every category.
     </p>
     <a href="{{ url_for('predict', league_key=league_key) }}" class="btn btn-primary">
-        🚀 הצג חיזוי
+        🚀 View Prediction
     </a>
 </div>
 {% endblock %}

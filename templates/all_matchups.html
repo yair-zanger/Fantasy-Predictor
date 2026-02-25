@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 
-{% block title %}כל המאצ'אפים - {{ league_name }}{% endblock %}
+{% block title %}All Matchups - {{ league_name }}{% endblock %}
 
 {% block extra_styles %}
 <style>
@@ -10,19 +10,19 @@
         opacity: 0;
         animation: fadeIn 0.5s ease-out forwards;
     }
-    
+
     .league-title {
         font-size: 1.5rem;
         color: var(--text-secondary);
         margin-bottom: 0.5rem;
     }
-    
+
     .page-title {
         font-size: 2rem;
         color: var(--text-primary);
         margin-bottom: 1rem;
     }
-    
+
     .week-badge {
         display: inline-block;
         background: var(--accent-orange);
@@ -32,7 +32,7 @@
         font-weight: 700;
         margin-bottom: 1rem;
     }
-    
+
     /* Week Selector */
     .week-selector {
         display: flex;
@@ -45,7 +45,7 @@
         position: relative;
         z-index: 10000;
     }
-    
+
     .week-nav-btn {
         display: flex;
         align-items: center;
@@ -61,19 +61,19 @@
         transition: all 0.3s;
         text-decoration: none;
     }
-    
+
     .week-nav-btn:hover:not(.disabled) {
         background: var(--accent-orange);
         border-color: var(--accent-orange);
         transform: scale(1.05);
     }
-    
+
     .week-nav-btn.disabled {
         opacity: 0.3;
         cursor: not-allowed;
         pointer-events: none;
     }
-    
+
     .week-current {
         background: var(--bg-card);
         border: 2px solid var(--accent-orange);
@@ -83,12 +83,12 @@
         min-width: 120px;
         text-align: center;
     }
-    
+
     .week-dropdown-container {
         position: relative;
         z-index: 10001;
     }
-    
+
     .week-dropdown-btn {
         display: flex;
         align-items: center;
@@ -105,16 +105,16 @@
         min-width: 180px;
         justify-content: center;
     }
-    
+
     .week-dropdown-btn:hover {
         background: rgba(255, 107, 53, 0.1);
     }
-    
+
     .week-dropdown-btn .week-label {
         color: var(--text-secondary);
         font-weight: 400;
     }
-    
+
     .week-dropdown-btn .current-indicator {
         background: var(--accent-green);
         color: white;
@@ -123,7 +123,7 @@
         border-radius: 10px;
         margin-right: 0.5rem;
     }
-    
+
     .week-dropdown {
         position: absolute;
         top: calc(100% + 8px);
@@ -140,12 +140,12 @@
         display: none;
         z-index: 10002;
     }
-    
+
     .week-dropdown.show {
         display: block;
         animation: fadeIn 0.2s ease-out;
     }
-    
+
     .week-option {
         display: flex;
         align-items: center;
@@ -156,25 +156,25 @@
         text-decoration: none;
         transition: background 0.2s;
     }
-    
+
     .week-option:hover {
         background: var(--accent-orange);
         color: white;
     }
-    
+
     .week-option.active {
         background: rgba(255, 107, 53, 0.2);
         border: 1px solid var(--accent-orange);
     }
-    
+
     .week-option.current-week {
         font-weight: 600;
     }
-    
+
     .week-option.past-week {
         opacity: 0.7;
     }
-    
+
     .week-option .badge {
         background: var(--accent-green);
         color: white;
@@ -182,21 +182,21 @@
         padding: 0.2rem 0.5rem;
         border-radius: 10px;
     }
-    
+
     .week-option .past-badge {
         background: var(--text-muted);
     }
-    
+
     .week-option .badge.playoff-badge {
         background: var(--accent-red);
         color: white;
     }
-    
+
     .week-option.active .badge.playoff-badge {
         background: white;
         color: var(--accent-red);
     }
-    
+
     .playoff-indicator {
         background: var(--accent-red);
         color: white;
@@ -205,7 +205,7 @@
         border-radius: 10px;
         margin-right: 0.5rem;
     }
-    
+
     /* Side Menu */
     .menu-toggle {
         position: fixed;
@@ -225,11 +225,11 @@
         gap: 5px;
         transition: all 0.3s;
     }
-    
+
     .menu-toggle:hover {
         background: var(--accent-orange);
     }
-    
+
     .menu-toggle span {
         width: 24px;
         height: 3px;
@@ -237,23 +237,23 @@
         border-radius: 2px;
         transition: all 0.3s;
     }
-    
+
     .menu-toggle:hover span {
         background: white;
     }
-    
+
     .menu-toggle.open span:nth-child(1) {
         transform: rotate(45deg) translate(5px, 5px);
     }
-    
+
     .menu-toggle.open span:nth-child(2) {
         opacity: 0;
     }
-    
+
     .menu-toggle.open span:nth-child(3) {
         transform: rotate(-45deg) translate(6px, -6px);
     }
-    
+
     .side-menu {
         position: fixed;
         top: 0;
@@ -267,11 +267,11 @@
         padding: 5rem 1.5rem 2rem;
         overflow-y: auto;
     }
-    
+
     .side-menu.open {
         right: 0;
     }
-    
+
     .side-menu-overlay {
         position: fixed;
         top: 0;
@@ -284,12 +284,12 @@
         visibility: hidden;
         transition: all 0.3s;
     }
-    
+
     .side-menu-overlay.open {
         opacity: 1;
         visibility: visible;
     }
-    
+
     .side-menu-title {
         font-size: 1.2rem;
         font-weight: 700;
@@ -298,7 +298,7 @@
         padding-bottom: 0.75rem;
         border-bottom: 1px solid var(--border-color);
     }
-    
+
     .nav-link {
         display: flex;
         align-items: center;
@@ -318,7 +318,7 @@
         background: var(--accent-blue);
         border-color: var(--accent-blue);
         color: white;
-        transform: translateX(-5px);
+        transform: translateX(5px);
     }
 
     .nav-link.active {
@@ -326,7 +326,7 @@
         border-color: var(--accent-orange);
         color: white;
     }
-    
+
     /* Matchups Grid */
     .matchups-grid {
         display: grid;
@@ -334,7 +334,7 @@
         gap: 1.5rem;
         margin-bottom: 2rem;
     }
-    
+
     .matchup-card {
         background: var(--bg-card);
         border-radius: 16px;
@@ -343,35 +343,35 @@
         opacity: 0;
         animation: fadeIn 0.5s ease-out forwards;
     }
-    
+
     .matchup-card.my-matchup {
         border: 2px solid var(--accent-orange);
         box-shadow: 0 0 20px rgba(255, 107, 53, 0.2);
     }
-    
+
     .matchup-header {
         background: var(--bg-secondary);
         padding: 1rem;
         text-align: center;
         border-bottom: 1px solid var(--border-color);
     }
-    
+
     .matchup-header .score {
         font-size: 1.5rem;
         font-weight: 700;
         color: var(--accent-orange);
     }
-    
+
     .matchup-header .label {
         font-size: 0.8rem;
         color: var(--text-secondary);
     }
-    
+
     .matchup-teams {
         display: flex;
         flex-direction: column;
     }
-    
+
     .team-row {
         display: flex;
         align-items: center;
@@ -379,64 +379,64 @@
         padding: 1rem;
         border-bottom: 1px solid var(--border-color);
     }
-    
+
     .team-row:last-child {
         border-bottom: none;
     }
-    
+
     .team-row.winner {
         background: rgba(0, 200, 117, 0.1);
     }
-    
+
     .team-row.loser {
         background: rgba(255, 71, 87, 0.05);
     }
-    
+
     .team-row.my-team {
         border-right: 4px solid var(--accent-orange);
     }
-    
+
     .team-info {
         flex: 1;
     }
-    
+
     .team-name {
         font-weight: 600;
         font-size: 1rem;
         color: var(--text-primary);
         margin-bottom: 0.25rem;
     }
-    
+
     .team-manager {
         font-size: 0.8rem;
         color: var(--text-secondary);
     }
-    
+
     .team-games {
         font-size: 0.75rem;
         color: var(--text-muted);
         margin-top: 0.25rem;
     }
-    
+
     .team-wins {
         font-size: 1.75rem;
         font-weight: 700;
         min-width: 50px;
         text-align: center;
     }
-    
+
     .team-wins.winning {
         color: var(--accent-green);
     }
-    
+
     .team-wins.losing {
         color: var(--accent-red);
     }
-    
+
     .team-wins.tie {
         color: var(--accent-orange);
     }
-    
+
     .winner-badge {
         display: inline-block;
         background: var(--accent-green);
@@ -446,7 +446,7 @@
         border-radius: 4px;
         margin-right: 0.5rem;
     }
-    
+
     /* Categories Breakdown */
     .categories-toggle {
         display: flex;
@@ -454,7 +454,7 @@
         padding: 0.5rem;
         background: var(--bg-secondary);
     }
-    
+
     .categories-toggle button {
         background: none;
         border: none;
@@ -465,23 +465,23 @@
         border-radius: 8px;
         transition: all 0.3s;
     }
-    
+
     .categories-toggle button:hover {
         background: var(--bg-card);
         color: var(--text-primary);
     }
-    
+
     .categories-breakdown {
         display: none;
         padding: 1rem;
         background: var(--bg-secondary);
         border-top: 1px solid var(--border-color);
     }
-    
+
     .categories-breakdown.show {
         display: block;
     }
-    
+
     .category-row {
         display: flex;
         justify-content: space-between;
@@ -489,33 +489,33 @@
         padding: 0.5rem 0;
         border-bottom: 1px solid var(--border-color);
     }
-    
+
     .category-row:last-child {
         border-bottom: none;
     }
-    
+
     .category-name {
         font-weight: 600;
         color: var(--text-primary);
         flex: 1;
         text-align: center;
     }
-    
+
     .category-value {
         flex: 1;
         text-align: center;
         font-size: 0.9rem;
     }
-    
+
     .category-value.winner {
         color: var(--accent-green);
         font-weight: 600;
     }
-    
+
     .category-value.loser {
         color: var(--text-muted);
     }
-    
+
     /* Summary section */
     .summary-section {
         background: var(--bg-card);
@@ -524,43 +524,50 @@
         margin-top: 2rem;
         border: 1px solid var(--border-color);
     }
-    
+
     .summary-title {
         font-size: 1.25rem;
         font-weight: 600;
         margin-bottom: 1rem;
         text-align: center;
     }
-    
+
     .summary-grid {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
         gap: 1rem;
     }
-    
+
     .summary-item {
         text-align: center;
         padding: 1rem;
         background: var(--bg-secondary);
         border-radius: 12px;
     }
-    
+
     .summary-value {
         font-size: 2rem;
         font-weight: 700;
         color: var(--accent-orange);
     }
-    
+
     .summary-label {
         font-size: 0.9rem;
         color: var(--text-secondary);
     }
 
     @keyframes fadeIn {
-        from { opacity: 0; transform: translateY(10px); }
-        to { opacity: 1; transform: translateY(0); }
+        from {
+            opacity: 0;
+            transform: translateY(10px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
     }
-    
+
     @media (max-width: 768px) {
         .matchups-grid {
             grid-template-columns: 1fr;
@@ -574,60 +581,61 @@
     <!-- Page Header -->
     <div class="page-header">
         <div class="league-title">{{ league_name }}</div>
-        <h1 class="page-title">כל המאצ'אפים</h1>
-        <span class="week-badge">שבוע {{ selected_week }}</span>
+        <h1 class="page-title">All Matchups</h1>
+        <span class="week-badge">Week {{ selected_week }}</span>
     </div>
-    
+
     <!-- Week Selector -->
     <div class="week-selector">
         {% if selected_week > start_week %}
-        <a href="{{ url_for('predict_all', league_key=league_key, week=selected_week-1) }}" class="week-nav-btn" title="שבוע קודם">
-            →
-        </a>
-        {% else %}
-        <span class="week-nav-btn disabled">→</span>
-        {% endif %}
-        
-        <div class="week-dropdown-container">
-            <button class="week-dropdown-btn" onclick="toggleWeekDropdown()">
-                <span class="week-label">שבוע</span>
-                <span>{{ selected_week }}</span>
-                {% if selected_week == current_week %}
-                <span class="current-indicator">נוכחי</span>
-                {% endif %}
-                {% if playoff_start_week and selected_week >= playoff_start_week %}
-                <span class="playoff-indicator">פלייאוף</span>
-                {% endif %}
-                <span style="font-size: 0.75rem;">▼</span>
-            </button>
-            
-            <div class="week-dropdown" id="weekDropdown">
-                {% for week_num in range(start_week, end_week + 1) %}
-                <a href="{{ url_for('predict_all', league_key=league_key, week=week_num) }}" 
-                   class="week-option {% if week_num == selected_week %}active{% endif %} {% if week_num == current_week %}current-week{% endif %} {% if week_num < current_week %}past-week{% endif %}">
-                    <span>שבוע {{ week_num }}</span>
-                    {% if week_num < current_week %}
-                    <span class="badge past-badge">הסתיים</span>
-                    {% elif week_num == current_week %}
-                    <span class="badge">נוכחי</span>
-                    {% endif %}
-                    {% if playoff_start_week and week_num >= playoff_start_week %}
-                    <span class="badge playoff-badge">פלייאוף</span>
-                    {% endif %}
-                </a>
-                {% endfor %}
-            </div>
-        </div>
-        
-        {% if selected_week < end_week %}
-        <a href="{{ url_for('predict_all', league_key=league_key, week=selected_week+1) }}" class="week-nav-btn" title="שבוע הבא">
+        <a href="{{ url_for('predict_all', league_key=league_key, week=selected_week-1) }}" class="week-nav-btn"
+            title="Previous Week">
             ←
         </a>
         {% else %}
         <span class="week-nav-btn disabled">←</span>
         {% endif %}
+
+        <div class="week-dropdown-container">
+            <button class="week-dropdown-btn" onclick="toggleWeekDropdown()">
+                <span class="week-label">Week</span>
+                <span>{{ selected_week }}</span>
+                {% if selected_week == current_week %}
+                <span class="current-indicator">Current</span>
+                {% endif %}
+                {% if playoff_start_week and selected_week >= playoff_start_week %}
+                <span class="playoff-indicator">Playoffs</span>
+                {% endif %}
+                <span style="font-size: 0.75rem;">▼</span>
+            </button>
+
+            <div class="week-dropdown" id="weekDropdown">
+                {% for week_num in range(start_week, end_week + 1) %}
+                <a href="{{ url_for('predict_all', league_key=league_key, week=week_num) }}"
+                    class="week-option {% if week_num == selected_week %}active{% endif %} {% if week_num == current_week %}current-week{% endif %} {% if week_num < current_week %}past-week{% endif %}">
+                    <span>Week {{ week_num }}</span>
+                    {% if week_num < current_week %} <span class="badge past-badge">Finished</span>
+                        {% elif week_num == current_week %}
+                        <span class="badge">Current</span>
+                        {% endif %}
+                        {% if playoff_start_week and week_num >= playoff_start_week %}
+                        <span class="badge playoff-badge">Playoffs</span>
+                        {% endif %}
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+
+        {% if selected_week < end_week %} <a
+            href="{{ url_for('predict_all', league_key=league_key, week=selected_week+1) }}" class="week-nav-btn"
+            title="Next Week">
+            →
+            </a>
+            {% else %}
+            <span class="week-nav-btn disabled">→</span>
+            {% endif %}
     </div>
-    
+
     <!-- Side Menu Toggle -->
     <button class="menu-toggle" onclick="toggleSideMenu()" id="menuToggle">
         <span></span>
@@ -640,91 +648,98 @@
 
     <!-- Side Menu -->
     <div class="side-menu" id="sideMenu">
-        <div class="side-menu-title">📋 ניווט</div>
+        <div class="side-menu-title">📋 Navigation</div>
         <a href="{{ url_for('dashboard') }}" class="nav-link">
-            🏀 כל הליגות
+            🏀 All Leagues
         </a>
         <a href="{{ url_for('predict', league_key=league_key, week=selected_week) }}" class="nav-link">
-            🎯 המאצ'אפ שלי
+            🎯 My Matchup
         </a>
         <a href="{{ url_for('predict_all', league_key=league_key, week=selected_week) }}" class="nav-link active">
-            📊 כל המאצ'אפים
+            📊 All Matchups
         </a>
         <a href="{{ url_for('standings', league_key=league_key) }}" class="nav-link">
-            🏆 טבלת הליגה
+            🏆 League Standings
         </a>
     </div>
-    
+
     <!-- Matchups Grid -->
     <div class="matchups-grid">
         {% for matchup in predictions %}
-        <div class="matchup-card {% if matchup.team1.key == my_team_key or matchup.team2.key == my_team_key %}my-matchup{% endif %}" style="animation-delay: {{ loop.index * 0.1 }}s">
+        <div class="matchup-card {% if matchup.team1.key == my_team_key or matchup.team2.key == my_team_key %}my-matchup{% endif %}"
+            style="animation-delay: {{ loop.index * 0.1 }}s">
             <div class="matchup-header">
-                <div class="label">תוצאה צפויה</div>
+                <div class="label">Projected Result</div>
                 <div class="score">{{ matchup.predicted_score }}</div>
             </div>
-            
+
             <div class="matchup-teams">
                 <!-- Team 1 -->
-                <div class="team-row {% if matchup.team1.wins > matchup.team2.wins %}winner{% elif matchup.team1.wins < matchup.team2.wins %}loser{% endif %} {% if matchup.team1.key == my_team_key %}my-team{% endif %}">
+                <div
+                    class="team-row {% if matchup.team1.wins > matchup.team2.wins %}winner{% elif matchup.team1.wins < matchup.team2.wins %}loser{% endif %} {% if matchup.team1.key == my_team_key %}my-team{% endif %}">
                     <div class="team-info">
                         <div class="team-name">
                             {% if matchup.team1.wins > matchup.team2.wins %}
-                            <span class="winner-badge">מנצח</span>
+                            <span class="winner-badge">Winner</span>
                             {% endif %}
                             {{ matchup.team1.name }}
                         </div>
                         <div class="team-manager">{{ matchup.team1.manager }}</div>
-                        <div class="team-games">🏀 {{ matchup.team1.remaining_games }} משחקים נותרו</div>
+                        <div class="team-games">🏀 {{ matchup.team1.remaining_games }} games remaining</div>
                     </div>
-                    <div class="team-wins {% if matchup.team1.wins > matchup.team2.wins %}winning{% elif matchup.team1.wins < matchup.team2.wins %}losing{% else %}tie{% endif %}">
+                    <div
+                        class="team-wins {% if matchup.team1.wins > matchup.team2.wins %}winning{% elif matchup.team1.wins < matchup.team2.wins %}losing{% else %}tie{% endif %}">
                         {{ matchup.team1.wins }}
                     </div>
                 </div>
-                
+
                 <!-- VS Divider -->
                 <div style="text-align: center; padding: 0.5rem; color: var(--text-muted); font-size: 0.8rem;">VS</div>
-                
+
                 <!-- Team 2 -->
-                <div class="team-row {% if matchup.team2.wins > matchup.team1.wins %}winner{% elif matchup.team2.wins < matchup.team1.wins %}loser{% endif %} {% if matchup.team2.key == my_team_key %}my-team{% endif %}">
+                <div
+                    class="team-row {% if matchup.team2.wins > matchup.team1.wins %}winner{% elif matchup.team2.wins < matchup.team1.wins %}loser{% endif %} {% if matchup.team2.key == my_team_key %}my-team{% endif %}">
                     <div class="team-info">
                         <div class="team-name">
                             {% if matchup.team2.wins > matchup.team1.wins %}
-                            <span class="winner-badge">מנצח</span>
+                            <span class="winner-badge">Winner</span>
                             {% endif %}
                             {{ matchup.team2.name }}
                         </div>
                         <div class="team-manager">{{ matchup.team2.manager }}</div>
-                        <div class="team-games">🏀 {{ matchup.team2.remaining_games }} משחקים נותרו</div>
+                        <div class="team-games">🏀 {{ matchup.team2.remaining_games }} games remaining</div>
                     </div>
-                    <div class="team-wins {% if matchup.team2.wins > matchup.team1.wins %}winning{% elif matchup.team2.wins < matchup.team1.wins %}losing{% else %}tie{% endif %}">
+                    <div
+                        class="team-wins {% if matchup.team2.wins > matchup.team1.wins %}winning{% elif matchup.team2.wins < matchup.team1.wins %}losing{% else %}tie{% endif %}">
                         {{ matchup.team2.wins }}
                     </div>
                 </div>
             </div>
-            
+
             <!-- Categories Toggle -->
             <div class="categories-toggle">
-                <button onclick="toggleCategories(this)">📊 הצג קטגוריות</button>
+                <button onclick="toggleCategories(this)">📊 Show Categories</button>
             </div>
-            
+
             <!-- Categories Breakdown (hidden by default) -->
             <div class="categories-breakdown">
                 {% for cat in categories %}
                 <div class="category-row">
-                    <div class="category-value {% if matchup.category_winners.get(cat) == 'my_team' %}winner{% else %}loser{% endif %}">
+                    <div
+                        class="category-value {% if matchup.category_winners.get(cat) == 'my_team' %}winner{% else %}loser{% endif %}">
                         {% if cat in ['FG%', 'FT%'] %}
-                            {{ "%.1f"|format(matchup.team1.projected.get(cat, 0)) }}%
+                        {{ "%.1f"|format(matchup.team1.projected.get(cat, 0)) }}%
                         {% else %}
-                            {{ "%.1f"|format(matchup.team1.projected.get(cat, 0)) }}
+                        {{ "%.1f"|format(matchup.team1.projected.get(cat, 0)) }}
                         {% endif %}
                     </div>
                     <div class="category-name">{{ cat }}</div>
-                    <div class="category-value {% if matchup.category_winners.get(cat) == 'opponent' %}winner{% else %}loser{% endif %}">
+                    <div
+                        class="category-value {% if matchup.category_winners.get(cat) == 'opponent' %}winner{% else %}loser{% endif %}">
                         {% if cat in ['FG%', 'FT%'] %}
-                            {{ "%.1f"|format(matchup.team2.projected.get(cat, 0)) }}%
+                        {{ "%.1f"|format(matchup.team2.projected.get(cat, 0)) }}%
                         {% else %}
-                            {{ "%.1f"|format(matchup.team2.projected.get(cat, 0)) }}
+                        {{ "%.1f"|format(matchup.team2.projected.get(cat, 0)) }}
                         {% endif %}
                     </div>
                 </div>
@@ -733,69 +748,70 @@
         </div>
         {% endfor %}
     </div>
-    
+
     <!-- Summary -->
     <div class="summary-section">
-        <div class="summary-title">📈 סיכום שבועי</div>
+        <div class="summary-title">📈 Weekly Summary</div>
         <div class="summary-grid">
             <div class="summary-item">
                 <div class="summary-value">{{ predictions|length }}</div>
-                <div class="summary-label">מאצ'אפים</div>
+                <div class="summary-label">Matchups</div>
             </div>
             <div class="summary-item">
                 <div class="summary-value">{{ predictions|length * 2 }}</div>
-                <div class="summary-label">קבוצות משחקות</div>
+                <div class="summary-label">Active Teams</div>
             </div>
             <div class="summary-item">
-                {% set close_games = predictions|selectattr('team1.wins', 'ge', 4)|selectattr('team2.wins', 'ge', 4)|list|length %}
+                {% set close_games = predictions|selectattr('team1.wins', 'ge', 4)|selectattr('team2.wins', 'ge',
+                4)|list|length %}
                 <div class="summary-value">{{ close_games }}</div>
-                <div class="summary-label">משחקים צמודים</div>
+                <div class="summary-label">Close Games</div>
             </div>
         </div>
     </div>
 </div>
 
 <script>
-function toggleSideMenu() {
-    const menu = document.getElementById('sideMenu');
-    const overlay = document.getElementById('menuOverlay');
-    const toggle = document.getElementById('menuToggle');
-    
-    menu.classList.toggle('open');
-    overlay.classList.toggle('open');
-    toggle.classList.toggle('open');
-}
+    function toggleSideMenu() {
+        const menu = document.getElementById('sideMenu');
+        const overlay = document.getElementById('menuOverlay');
+        const toggle = document.getElementById('menuToggle');
 
-function toggleCategories(btn) {
-    const card = btn.closest('.matchup-card');
-    const breakdown = card.querySelector('.categories-breakdown');
-    breakdown.classList.toggle('show');
-    btn.textContent = breakdown.classList.contains('show') ? '📊 הסתר קטגוריות' : '📊 הצג קטגוריות';
-}
-
-function toggleWeekDropdown() {
-    const dropdown = document.getElementById('weekDropdown');
-    dropdown.classList.toggle('show');
-}
-
-// Close dropdown when clicking outside
-document.addEventListener('click', function(event) {
-    const dropdown = document.getElementById('weekDropdown');
-    const button = event.target.closest('.week-dropdown-btn');
-    
-    if (!button && dropdown.classList.contains('show')) {
-        dropdown.classList.remove('show');
+        menu.classList.toggle('open');
+        overlay.classList.toggle('open');
+        toggle.classList.toggle('open');
     }
-});
 
-// Keyboard navigation
-document.addEventListener('keydown', function(event) {
-    if (event.key === 'Escape') {
+    function toggleCategories(btn) {
+        const card = btn.closest('.matchup-card');
+        const breakdown = card.querySelector('.categories-breakdown');
+        breakdown.classList.toggle('show');
+        btn.textContent = breakdown.classList.contains('show') ? '📊 Hide Categories' : '📊 Show Categories';
+    }
+
+    function toggleWeekDropdown() {
         const dropdown = document.getElementById('weekDropdown');
-        if (dropdown) {
+        dropdown.classList.toggle('show');
+    }
+
+    // Close dropdown when clicking outside
+    document.addEventListener('click', function (event) {
+        const dropdown = document.getElementById('weekDropdown');
+        const button = event.target.closest('.week-dropdown-btn');
+
+        if (!button && dropdown.classList.contains('show')) {
             dropdown.classList.remove('show');
         }
-    }
-});
+    });
+
+    // Keyboard navigation
+    document.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape') {
+            const dropdown = document.getElementById('weekDropdown');
+            if (dropdown) {
+                dropdown.classList.remove('show');
+            }
+        }
+    });
 </script>
 {% endblock %}

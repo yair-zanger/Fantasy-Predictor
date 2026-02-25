@@ -344,7 +344,7 @@ def standings(league_key):
                                  start_week=start_week,
                                  end_week=end_week,
                                  playoff_start_week=playoff_start_week,
-                                 message=f"שבוע {selected_week} הוא שבוע פלייאוף - הטבלה הרגילה כבר לא רלוונטית")
+                                 message=f"Week {selected_week} is a playoff week — regular standings no longer apply")
         
         # Get current actual standings from Yahoo (these are matchup wins/losses, not category wins)
         standings_data = api.get_league_standings(league_key)
@@ -704,7 +704,7 @@ if __name__ == '__main__':
     print("Fantasy Basketball Predictor")
     print("="*50)
     print("\nStarting application...")
-    print("Go to: http://localhost:5000")
+    print("Go to: https://localhost:5000")
     print("\nTo stop: Ctrl+C")
     print("="*50 + "\n")
     
@@ -719,4 +719,4 @@ if __name__ == '__main__':
     print("🔄 Cache 24/7: background refresh every 30 min (keeps site fast while server runs).\n")
     
     # Run with HTTP (no SSL needed for local development)
-    app.run(debug=True, port=5000)
+    app.run(debug=True, port=5000, ssl_context='adhoc')

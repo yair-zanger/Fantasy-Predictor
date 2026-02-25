@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="he" dir="rtl">
+<html lang="en" dir="ltr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Fantasy Basketball Predictor{% endblock %}</title>
-    <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;700;900&display=swap" rel="stylesheet">
     <style>
         :root {
             --bg-primary: #0a0e17;
@@ -28,7 +28,7 @@
         }
         
         body {
-            font-family: 'Heebo', sans-serif;
+            font-family: 'Inter', sans-serif;
             background: var(--bg-primary);
             color: var(--text-primary);
             min-height: 100vh;
@@ -236,8 +236,8 @@
         </a>
         <div class="nav-links">
             {% if auth.is_authenticated() %}
-                <a href="{{ url_for('dashboard') }}">ליגות</a>
-                <a href="{{ url_for('logout') }}">התנתק</a>
+                <a href="{{ url_for('dashboard') }}">Leagues</a>
+                <a href="{{ url_for('logout') }}">Logout</a>
             {% endif %}
         </div>
     </nav>
