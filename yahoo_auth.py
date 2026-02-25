@@ -296,6 +296,9 @@ class YahooAuth:
     
     def get_valid_token(self):
         """Get a valid access token, refreshing if necessary"""
+        # Ensure we always have the latest token from the current session/file
+        self.load_token()
+        
         if self.access_token and self.token_expiry:
             # Check if token is about to expire (within 5 minutes)
             if time.time() < self.token_expiry - 300:

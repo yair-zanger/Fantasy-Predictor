@@ -218,6 +218,9 @@ def auth_callback():
     if code:
         try:
             auth.exchange_code_for_token(code)
+            # Clear API cache so User B doesn't see User A's data
+            from yahoo_api import clear_cache
+            clear_cache()
             return redirect(url_for('dashboard'))
         except Exception as e:
             return render_template('error.html', error=str(e))
@@ -663,6 +666,10 @@ def logout():
     auth.access_token = None
     auth.refresh_token = None
     auth.token_expiry = None
+
+    # Clear API cache to prevent data leakage
+    from yahoo_api import clear_cache
+    clear_cache()
 
     # Remove local token file if present (local dev)
     if os.path.exists('yahoo_token.json'):
