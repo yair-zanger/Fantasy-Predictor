@@ -99,6 +99,14 @@ class YahooAuth:
         self.code_verifier = self._generate_code_verifier()
         code_challenge = self._generate_code_challenge(self.code_verifier)
         
+        # Save code_verifier to session so it survives across serverless invocations
+        try:
+            from flask import session
+            session['pkce_code_verifier'] = self.code_verifier
+            session.modified = True
+        except RuntimeError:
+            pass  # No Flask request context (CLI mode)
+        
         params = {
             'client_id': self.client_id,
             'redirect_uri': self.redirect_uri,
@@ -212,6 +220,14 @@ class YahooAuth:
     
     def exchange_code_for_token(self, code):
         """Exchange authorization code for access token with PKCE"""
+        # Restore code_verifier from session if it was lost (serverless)
+        if not self.code_verifier:
+            try:
+                from flask import session
+                self.code_verifier = session.get('pkce_code_verifier')
+            except RuntimeError:
+                pass
+        
         data = {
             'grant_type': 'authorization_code',
             'code': code,
@@ -239,6 +255,12 @@ class YahooAuth:
             self.token_expiry = time.time() + token_data.get('expires_in', 3600)
             self.save_token()
             self.code_verifier = None  # Clear after use
+            # Also clear from session
+            try:
+                from flask import session
+                session.pop('pkce_code_verifier', None)
+            except RuntimeError:
+                pass
         else:
             raise Exception(f"Failed to get token: {response.text}")
     
