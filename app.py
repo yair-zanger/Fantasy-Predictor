@@ -18,7 +18,7 @@ import time
 from yahoo_auth import auth
 from yahoo_api import api
 from predictor import predictor, PlayoffWeekError
-from config import CATEGORIES, DEBUG_MODE
+from config import CATEGORIES, DEBUG_MODE, IS_VERCEL
 
 def debug_print(*args, **kwargs):
     """Print only if DEBUG_MODE is enabled."""
@@ -672,8 +672,11 @@ def logout():
     clear_cache()
 
     # Remove local token file if present (local dev only)
-    if not IS_VERCEL and os.path.exists('yahoo_token.json'):
-        os.remove('yahoo_token.json')
+    try:
+        if not IS_VERCEL and os.path.exists('yahoo_token.json'):
+            os.remove('yahoo_token.json')
+    except Exception as e:
+        print(f"Error removing token file: {e}")
 
     return redirect(url_for('login'))
 
