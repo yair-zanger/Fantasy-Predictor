@@ -172,8 +172,16 @@ app.secret_key = os.getenv('FLASK_SECRET_KEY', os.urandom(24))
 # Make auth available in all templates
 @app.context_processor
 def inject_auth():
-    return dict(auth=auth)
-
+    context = dict(auth=auth)
+    if auth.is_authenticated():
+        try:
+            context['current_user_name'] = api.get_logged_in_user_name()
+        except Exception as e:
+            debug_print(f"Error getting username for context: {e}")
+            context['current_user_name'] = ""
+    else:
+        context['current_user_name'] = ""
+    return context
 
 @app.route('/')
 def index():
@@ -310,7 +318,14 @@ def predict(league_key):
                              selected_week=selected_week,
                              playoff_start_week=playoff_start_week)
     except PlayoffWeekError as e:
-        # Playoff week - show friendly message
+        # Playoff week - run prediction simulation for next week
+        simulation = {}
+        try:
+            simulation = simulate_next_playoff_week(league_key, selected_week, current_week)
+        except Exception as sim_e:
+            debug_print(f"[Playoff] Sim error: {sim_e}")
+            simulation = {'error': str(sim_e)}
+            
         return render_template('playoff.html',
                              league_key=league_key,
                              selected_week=selected_week,
@@ -318,7 +333,8 @@ def predict(league_key):
                              start_week=start_week,
                              end_week=end_week,
                              playoff_start_week=playoff_start_week,
-                             message=e.message)
+                             message=e.message,
+                             simulation=simulation)
     except Exception as e:
         return render_template('error.html', error=str(e))
 
@@ -504,6 +520,108 @@ def project_future_category_records(league_key: str, current_records: dict,
     return projected
 
 
+def simulate_next_playoff_week(league_key: str, target_week: int, current_week: int) -> dict:
+    """Project the playoff bracket for checking who advances."""
+    from predictor import _get_prediction_cached, _set_prediction_cached
+    
+    # Check cache (v3 for cache busting)
+    cache_key = f"playoff_sim_v3:{league_key}:{target_week}:{current_week}"
+    cached = _get_prediction_cached(cache_key)
+    if cached is not None:
+        return cached
+
+    leagues = api.get_user_leagues()
+    league_info = next((l for l in leagues if l['league_key'] == league_key), None)
+    if not league_info:
+        return {}
+        
+    playoff_start_week = int(league_info.get('playoff_start_week', 22)) if league_info.get('playoff_start_week') else 22
+    
+    bracket = []
+    eliminated = []
+    my_team_status = ""
+    my_team = api.get_my_team(league_key)
+    my_team_key = my_team['team_key'] if my_team else None
+    
+    try:
+        # If target_week is the first week of playoffs and we're before it or right at its start
+        if target_week == playoff_start_week and current_week <= playoff_start_week:
+            standings_data = api.get_league_standings(league_key)
+            
+            if current_week < playoff_start_week:
+                try:
+                    current_records = api.get_category_records(league_key, current_week)
+                    projected_records = project_future_category_records(league_key, current_records, current_week, playoff_start_week - 1)
+                    projected_standings = rerank_standings(standings_data, projected_records)
+                except Exception as e:
+                    debug_print(f"[Playoff Sim] Projection failed, using current standings. Error: {e}")
+                    projected_standings = standings_data
+            else:
+                projected_standings = standings_data
+            
+            top_8 = projected_standings[:8]
+            eliminated = [t['team_key'] for t in projected_standings[8:]]
+            
+            if len(top_8) >= 8:
+                bracket = [
+                    {'team1': top_8[0], 'team2': top_8[7], 'seed1': top_8[0].get('rank', 1), 'seed2': top_8[7].get('rank', 8)},
+                    {'team1': top_8[3], 'team2': top_8[4], 'seed1': top_8[3].get('rank', 4), 'seed2': top_8[4].get('rank', 5)},
+                    {'team1': top_8[2], 'team2': top_8[5], 'seed1': top_8[2].get('rank', 3), 'seed2': top_8[5].get('rank', 6)},
+                    {'team1': top_8[1], 'team2': top_8[6], 'seed1': top_8[1].get('rank', 2), 'seed2': top_8[6].get('rank', 7)}
+                ]
+                
+        # If we are already in the playoffs or doing rolling next-week
+        elif target_week > current_week and current_week >= playoff_start_week:
+            predictions = predictor.predict_all_matchups(league_key, current_week, current_week)
+            winners = []
+            losers = []
+            for match in predictions:
+                winner_key = match.get('winner_key') or match.get('winner', {}).get('team_key') or match.get('winner', {}).get('key')
+                if winner_key:
+                    wt = match['team1'] if winner_key == match['team1'].get('key') else match['team2']
+                    lt = match['team2'] if winner_key == match['team1'].get('key') else match['team1']
+                    # normalize keys
+                    winners.append({'team_key': wt.get('key'), 'name': wt.get('name')})
+                    losers.append(lt.get('key'))
+                else:
+                    winners.append({'team_key': match['team1'].get('key'), 'name': match['team1'].get('name')})
+                    losers.append(match['team2'].get('key'))
+            
+            eliminated = losers
+            for i in range(0, len(winners), 2):
+                if i + 1 < len(winners):
+                    bracket.append({
+                        'team1': winners[i],
+                        'team2': winners[i+1]
+                    })
+    except Exception as e:
+        debug_print(f"[Playoff Sim] Error generating bracket: {e}")
+        import traceback
+        traceback.print_exc()
+        return {'bracket': [], 'eliminated': [], 'my_team_status': '', 'error': str(e)}
+
+    if my_team_key in eliminated:
+        my_team_status = "eliminated"
+    else:
+        in_bracket = False
+        for match in bracket:
+            if match.get('team1', {}).get('team_key') == my_team_key or \
+               match.get('team2', {}).get('team_key') == my_team_key:
+                in_bracket = True
+                break
+        if in_bracket:
+            my_team_status = "advancing"
+            
+    result = {
+        'bracket': bracket,
+        'eliminated': eliminated,
+        'my_team_status': my_team_status
+    }
+    
+    _set_prediction_cached(cache_key, result)
+    return result
+
+
 @app.route('/predict/<league_key>/all')
 def predict_all(league_key):
     """Show predictions for all matchups in the league"""
@@ -545,7 +663,14 @@ def predict_all(league_key):
                              playoff_start_week=playoff_start_week,
                              my_team_key=my_team_key)
     except PlayoffWeekError as e:
-        # Playoff week - show friendly message
+        # Playoff week - show friendly message with simulation
+        simulation = {}
+        try:
+            simulation = simulate_next_playoff_week(league_key, selected_week, current_week)
+        except Exception as sim_e:
+            debug_print(f"[Playoff] Sim error: {sim_e}")
+            simulation = {'error': str(sim_e)}
+            
         return render_template('playoff_all.html',
                              league_key=league_key,
                              selected_week=selected_week,
@@ -553,7 +678,8 @@ def predict_all(league_key):
                              start_week=start_week,
                              end_week=end_week,
                              playoff_start_week=playoff_start_week,
-                             message=e.message)
+                             message=e.message,
+                             simulation=simulation)
     except Exception as e:
         import traceback
         traceback.print_exc()

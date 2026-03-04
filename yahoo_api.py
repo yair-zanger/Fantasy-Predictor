@@ -227,6 +227,27 @@ class YahooFantasyAPI:
         _set_cached(cache_key, leagues, CACHE_TTL['leagues'])
         return leagues
     
+    def get_logged_in_user_name(self) -> str:
+        """Get the nickname of the currently logged-in user from their teams"""
+        cache_key = "logged_in_user_name"
+        cached = _get_cached(cache_key)
+        if cached is not None:
+            return cached
+            
+        try:
+            leagues = self.get_user_leagues()
+            if leagues:
+                # Get my team from the first league to extract the manager name
+                team = self.get_my_team(leagues[0]['league_key'])
+                if team and team.get('manager'):
+                    name = team['manager']
+                    _set_cached(cache_key, name, 86400 * 7) # Cache for 7 days
+                    return name
+        except Exception as e:
+            debug_print(f"Error getting logged in user name: {e}")
+            
+        return "User"
+    
     def get_league_settings(self, league_key: str) -> Dict:
         """Get league settings including scoring categories"""
         cache_key = f"settings:{league_key}"

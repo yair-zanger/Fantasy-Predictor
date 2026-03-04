@@ -350,6 +350,15 @@
          Hidden on mobile until hamburger pressed. Always visible on desktop. -->
         <div class="nav-links" id="navLinks">
             {% if auth.is_authenticated() %}
+            <span class="user-greeting"
+                style="color: var(--text-secondary); margin-left: 0.5rem; margin-right: 0.5rem; font-size: 0.9rem; font-weight: 500; display: flex; align-items: center; gap: 0.25rem;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                    <circle cx="12" cy="7" r="4"></circle>
+                </svg>
+                {{ current_user_name }}
+            </span>
             <a href="{{ url_for('dashboard') }}">Leagues</a>
             <a href="{{ url_for('logout') }}" class="nav-cta">Logout</a>
             {% else %}
@@ -382,6 +391,32 @@
                     document.getElementById('navLinks').classList.remove('open');
                     document.getElementById('navToggle').classList.remove('open');
                 }
+            });
+        });
+
+        // Add immediate visual feedback when clicking navigation links
+        document.addEventListener('DOMContentLoaded', function () {
+            const allNavLinks = document.querySelectorAll('.nav-link, #navLinks a:not(.nav-cta)');
+
+            allNavLinks.forEach(link => {
+                link.addEventListener('click', function (e) {
+                    // Don't apply if opening in a new tab or preventing default
+                    if (e.ctrlKey || e.metaKey || this.target === '_blank') return;
+
+                    // If side menu link
+                    if (this.classList.contains('nav-link')) {
+                        document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+                        this.classList.add('active');
+                    } else {
+                        // Top nav link
+                        document.querySelectorAll('#navLinks a:not(.nav-cta)').forEach(l => {
+                            l.style.background = '';
+                            l.style.color = '';
+                        });
+                        this.style.background = 'var(--accent-orange)';
+                        this.style.color = 'white';
+                    }
+                });
             });
         });
     </script>

@@ -148,6 +148,58 @@
     <h1 class="playoff-title">Playoff Week! 🏆</h1>
     <p class="playoff-message">{{ message }}</p>
 
+    {% if simulation and simulation.bracket %}
+    <div class="simulation-section" style="margin-top: 1rem; margin-bottom: 2rem; width: 100%; max-width: 800px;">
+        <h2 style="color: var(--accent-yellow); margin-bottom: 1.5rem;">🔮 Projected Next Round</h2>
+
+        {% if simulation.my_team_status == 'eliminated' %}
+        <div
+            style="background: rgba(255, 60, 60, 0.1); border: 1px solid #ff6b6b; padding: 1rem; border-radius: 12px; margin-bottom: 2rem;">
+            <h3 style="color: #ff6b6b; margin: 0;">❌ Projected to be Eliminated</h3>
+            <p style="margin: 0.5rem 0 0 0; color: var(--text-secondary);">Your team is not projected to advance to this
+                round.</p>
+        </div>
+        {% elif simulation.my_team_status == 'advancing' %}
+        <div
+            style="background: rgba(46, 213, 115, 0.1); border: 1px solid #2ed573; padding: 1rem; border-radius: 12px; margin-bottom: 2rem;">
+            <h3 style="color: #2ed573; margin: 0;">✅ Projected to Advance!</h3>
+            <p style="margin: 0.5rem 0 0 0; color: var(--text-secondary);">Your team is projected to make it to this
+                round.</p>
+        </div>
+        {% elif simulation.error %}
+        <div
+            style="background: rgba(255, 60, 60, 0.1); border: 1px solid #ff6b6b; padding: 1rem; border-radius: 12px; margin-bottom: 2rem;">
+            <h3 style="color: #ff6b6b; margin: 0;">⚠️ Internal Simulation Error</h3>
+            <p style="margin: 0.5rem 0 0 0; color: var(--text-secondary);">{{ simulation.error }}</p>
+        </div>
+        {% endif %}
+
+        <div class="bracket-grid"
+            style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem; text-align: left;">
+            {% for match in simulation.bracket %}
+            <div class="bracket-match"
+                style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                <div class="team-row"
+                    style="padding: 1rem; border-bottom: 1px solid var(--border-color); display: flex; align-items: center;">
+                    {% if match.seed1 %}<span
+                        style="color: var(--text-muted); font-size: 0.85rem; margin-right: 0.75rem; font-weight: 700;">#{{
+                        match.seed1 }}</span>{% endif %}
+                    <span style="font-weight: 600; color: var(--text-primary); font-size: 1.1rem;">{{ match.team1.name
+                        }}</span>
+                </div>
+                <div class="team-row"
+                    style="padding: 1rem; display: flex; align-items: center; background: rgba(0,0,0,0.1);">
+                    {% if match.seed2 %}<span
+                        style="color: var(--text-muted); font-size: 0.85rem; margin-right: 0.75rem; font-weight: 700;">#{{
+                        match.seed2 }}</span>{% endif %}
+                    <span style="font-weight: 600; color: var(--text-primary); font-size: 1.1rem;">{{ match.team2.name
+                        }}</span>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% else %}
     <div class="playoff-info">
         <div class="playoff-info-title">🔮 What does this mean?</div>
         <div class="playoff-info-text">
@@ -156,6 +208,7 @@
             Your opponent has not been determined yet — check back when the playoffs begin!
         </div>
     </div>
+    {% endif %}
 
     <!-- Week Navigation -->
     <div class="week-nav">

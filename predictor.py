@@ -57,7 +57,7 @@ class PlayoffWeekError(Exception):
     """Exception raised when trying to predict a playoff week without a known opponent"""
     def __init__(self, week: int, message: str = None):
         self.week = week
-        self.message = message or f"שבוע {week} הוא שבוע פלייאוף - היריב עדיין לא נקבע"
+        self.message = message or f"Week {week} is a playoff week - Opponent not determined yet"
         super().__init__(self.message)
 
 
@@ -483,7 +483,7 @@ class FantasyPredictor:
             if league_info:
                 playoff_start_week = int(league_info.get('playoff_start_week', 0)) if league_info.get('playoff_start_week') else None
                 if playoff_start_week and week and week >= playoff_start_week:
-                    raise PlayoffWeekError(week, f"שבוע {week} הוא שבוע פלייאוף - הזיווגים עדיין לא נקבעו")
+                    raise PlayoffWeekError(week, f"Week {week} is a playoff week - Matchups not determined yet")
             return []
         
         week_num = int(matchups[0].get('week', 0)) if matchups else 0
@@ -551,6 +551,37 @@ class FantasyPredictor:
                     # Last fallback: roster stats
                     player_averages[player_key] = player['stats']
         
+        # Pre-fetch transaction history for all teams mapped in parallel
+        yahoo_week_start = matchups[0].get('week_start') if matchups else None
+        yahoo_week_end = matchups[0].get('week_end') if matchups else None
+        all_acq_dates = {}
+        all_il_placements = {}
+        all_il_removals = {}
+        
+        if yahoo_week_start and yahoo_week_end:
+            try:
+                ws_dt = datetime.strptime(yahoo_week_start, '%Y-%m-%d')
+                we_dt = datetime.strptime(yahoo_week_end, '%Y-%m-%d')
+                debug_print(f"[DEBUG] Fetching transaction history for {len(all_team_keys)} teams in parallel...")
+                
+                def fetch_team_history(tk):
+                    acq = self.api.get_acquisition_dates_for_team(league_key, tk, ws_dt, we_dt)
+                    il_p, il_r = self.api.get_il_history_for_team(league_key, tk, ws_dt, we_dt)
+                    return tk, acq, il_p, il_r
+                
+                with ThreadPoolExecutor(max_workers=6) as executor:
+                    hist_futures = {executor.submit(fetch_team_history, tk): tk for tk in all_team_keys}
+                    for future in as_completed(hist_futures):
+                        try:
+                            tk, acq, il_p, il_r = future.result()
+                            all_acq_dates[tk] = acq
+                            all_il_placements[tk] = il_p
+                            all_il_removals[tk] = il_r
+                        except Exception as e:
+                            debug_print(f"[DEBUG] Error fetching history for team: {e}")
+            except (ValueError, TypeError):
+                pass
+                
         # Predict each matchup
         predictions = []
         for matchup in matchups:
@@ -561,37 +592,13 @@ class FantasyPredictor:
             team1 = teams[0]
             team2 = teams[1]
             
-            # Get week dates from matchup (handles double weeks)
-            yahoo_week_start = matchup.get('week_start')
-            yahoo_week_end = matchup.get('week_end')
-            
             # Acquisition dates per team (from transactions) - so we don't count players before they were added
-            acquisition_dates_team1 = {}
-            acquisition_dates_team2 = {}
-            il_placements_team1 = {}
-            il_removals_team1 = {}
-            il_placements_team2 = {}
-            il_removals_team2 = {}
-            
-            if yahoo_week_start and yahoo_week_end:
-                try:
-                    ws_dt = datetime.strptime(yahoo_week_start, '%Y-%m-%d')
-                    we_dt = datetime.strptime(yahoo_week_end, '%Y-%m-%d')
-                    acquisition_dates_team1 = self.api.get_acquisition_dates_for_team(
-                        league_key, team1['team_key'], ws_dt, we_dt
-                    )
-                    acquisition_dates_team2 = self.api.get_acquisition_dates_for_team(
-                        league_key, team2['team_key'], ws_dt, we_dt
-                    )
-                    # Get IL placement/removal history for both teams
-                    il_placements_team1, il_removals_team1 = self.api.get_il_history_for_team(
-                        league_key, team1['team_key'], ws_dt, we_dt
-                    )
-                    il_placements_team2, il_removals_team2 = self.api.get_il_history_for_team(
-                        league_key, team2['team_key'], ws_dt, we_dt
-                    )
-                except (ValueError, TypeError):
-                    pass
+            acquisition_dates_team1 = all_acq_dates.get(team1['team_key'], {})
+            acquisition_dates_team2 = all_acq_dates.get(team2['team_key'], {})
+            il_placements_team1 = all_il_placements.get(team1['team_key'], {})
+            il_removals_team1 = all_il_removals.get(team1['team_key'], {})
+            il_placements_team2 = all_il_placements.get(team2['team_key'], {})
+            il_removals_team2 = all_il_removals.get(team2['team_key'], {})
             
             # Project each team
             team1_projection = self._project_team_with_actuals(
@@ -1561,6 +1568,9 @@ class FantasyPredictor:
         my_wins = 0
         opp_wins = 0
         
+        # Add epsilon to prevent strict float equality ties from breaking math
+        EPSILON = 1e-5
+        
         for cat in self.STAT_CATEGORIES.keys():
             my_val = my_team.total_projected.get(cat, 0)
             opp_val = opponent.total_projected.get(cat, 0)
@@ -1569,11 +1579,11 @@ class FantasyPredictor:
             if cat in NEGATIVE_CATEGORIES:
                 my_val, opp_val = -my_val, -opp_val
             
-            # Determine winner
-            if my_val > opp_val:
+            # Determine winner with epsilon
+            if my_val > opp_val + EPSILON:
                 category_winners[cat] = 'my_team'
                 my_wins += 1
-            elif opp_val > my_val:
+            elif opp_val > my_val + EPSILON:
                 category_winners[cat] = 'opponent'
                 opp_wins += 1
             else:
