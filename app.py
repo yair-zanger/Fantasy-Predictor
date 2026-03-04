@@ -572,6 +572,9 @@ def simulate_next_playoff_week(league_key: str, target_week: int, current_week: 
                 
         # If we are already in the playoffs or doing rolling next-week
         elif target_week > current_week and current_week >= playoff_start_week:
+            standings_data = api.get_league_standings(league_key)
+            rank_map = {t['team_key']: t.get('rank', 99) for t in standings_data}
+            
             predictions = predictor.predict_all_matchups(league_key, current_week, current_week)
             winners = []
             losers = []
@@ -581,19 +584,44 @@ def simulate_next_playoff_week(league_key: str, target_week: int, current_week: 
                     wt = match['team1'] if winner_key == match['team1'].get('key') else match['team2']
                     lt = match['team2'] if winner_key == match['team1'].get('key') else match['team1']
                     # normalize keys
-                    winners.append({'team_key': wt.get('key'), 'name': wt.get('name')})
+                    winners.append({'team_key': wt.get('key'), 'name': wt.get('name'), 'rank': rank_map.get(wt.get('key'), 99)})
                     losers.append(lt.get('key'))
                 else:
-                    winners.append({'team_key': match['team1'].get('key'), 'name': match['team1'].get('name')})
+                    winners.append({'team_key': match['team1'].get('key'), 'name': match['team1'].get('name'), 'rank': rank_map.get(match['team1'].get('key'), 99)})
                     losers.append(match['team2'].get('key'))
             
             eliminated = losers
-            for i in range(0, len(winners), 2):
-                if i + 1 < len(winners):
-                    bracket.append({
-                        'team1': winners[i],
-                        'team2': winners[i+1]
-                    })
+            
+            # Sort winners so we can pair them correctly
+            # If 4 winners in a fixed bracket: highest seeds 1, 2, 3, 4
+            # NBA Style non-reseeded:
+            # Match 1: 1/8  vs  4/5
+            # Match 2: 2/7  vs  3/6
+            if len(winners) == 4:
+                # Top bracket: seeds 1/8, 4/5
+                top_bracket = [w for w in winners if w['rank'] in [1, 8, 4, 5]]
+                # Bottom bracket: seeds 2/7, 3/6
+                bottom_bracket = [w for w in winners if w['rank'] in [2, 7, 3, 6]]
+                
+                # If there were upsets that mixed this up (e.g. 1, 5, 3, 7)
+                # Ensure we have teams in each bracket part. Otherwise fallback to simple rank order.
+                if len(top_bracket) == 2 and len(bottom_bracket) == 2:
+                    bracket.append({'team1': top_bracket[0], 'team2': top_bracket[1]})
+                    bracket.append({'team1': bottom_bracket[0], 'team2': bottom_bracket[1]})
+                else:
+                    # Fallback to rank ordering: 1 plays 4, 2 plays 3
+                    winners.sort(key=lambda x: x['rank'])
+                    bracket.append({'team1': winners[0], 'team2': winners[3]}) # 1 vs 4
+                    bracket.append({'team1': winners[1], 'team2': winners[2]}) # 2 vs 3
+            elif len(winners) == 2:
+                bracket.append({'team1': winners[0], 'team2': winners[1]})
+            else:
+                for i in range(0, len(winners), 2):
+                    if i + 1 < len(winners):
+                        bracket.append({
+                            'team1': winners[i],
+                            'team2': winners[i+1]
+                        })
     except Exception as e:
         debug_print(f"[Playoff Sim] Error generating bracket: {e}")
         import traceback
