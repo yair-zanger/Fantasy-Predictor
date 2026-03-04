@@ -130,18 +130,18 @@
 
 {% block content %}
 <div class="page-header">
-    <h1 class="page-title">🏀 My Leagues</h1>
-    <p class="page-subtitle">Select a league to view your weekly matchup prediction</p>
+    <h1 class="page-title">🏀 Welcome, {{ current_user_name }}</h1>
+    <p class="page-subtitle">Your Fantasy Basketball Dashboard</p>
 </div>
 
 {% if leagues %}
 <div class="leagues-grid">
     {% for league in leagues %}
-    <a href="{{ url_for('predict', league_key=league.league_key) }}" class="league-card">
+    <a href="{{ url_for('predict', league_key=league.league_key) }}" class="league-card animate-in">
         <div class="league-header">
             <div>
                 <div class="league-name">{{ league.name }}</div>
-                <div class="league-type">Head-to-Head | 9-CAT</div>
+                <div class="league-type">{{ league.my_team_name if league.my_team_name else 'My Team' }}</div>
             </div>
             <span class="league-badge">Week {{ league.current_week }}</span>
         </div>
@@ -152,12 +152,19 @@
             </div>
             <div class="league-stat">
                 <div class="league-stat-value">{{ league.current_week }}</div>
-                <div class="league-stat-label">Current Week</div>
+                <div class="league-stat-label">Week</div>
             </div>
             <div class="league-stat">
                 <div class="league-stat-value">{{ league.end_week }}</div>
-                <div class="league-stat-label">Total Weeks</div>
+                <div class="league-stat-label">Ends</div>
             </div>
+        </div>
+
+        <div style="margin-top: 1.5rem; display: flex; gap: 0.5rem;">
+            <span class="btn btn-primary"
+                style="font-size: 0.8rem; padding: 0.4rem 0.8rem; flex: 1; justify-content: center;">
+                Select League
+            </span>
         </div>
     </a>
     {% endfor %}

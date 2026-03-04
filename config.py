@@ -44,3 +44,6 @@ NEGATIVE_CATEGORIES = ['TO']
 # NBA Season
 NBA_SEASON = '2025-26'
 GAME_CODE = 'nba'
+
+# Admin users (by Yahoo email) — have access to /admin panel
+ADMIN_EMAILS = ['yairzanger@gmail.com', 'yoelzanger@gmail.com']

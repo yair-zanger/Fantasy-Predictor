@@ -338,21 +338,33 @@ class YahooAuth:
                 pass
     
     def load_token(self):
-        """Load token - prefers Flask session, falls back to file on local."""
+        """Load token — in a web request context, reads ONLY from Flask session.
+        File fallback is used only in CLI mode (no Flask request context).
+        This prevents User A's on-disk token from leaking into User B's session.
+        """
         # Try Flask session first
+        in_flask_context = False
         try:
             from flask import session
             token_data = session.get('yahoo_token')
+            in_flask_context = True  # We are inside a real Flask request
             if token_data:
                 self.access_token = token_data.get('access_token')
                 self.refresh_token = token_data.get('refresh_token')
                 self.token_expiry = token_data.get('token_expiry')
                 return
+            else:
+                # We are in a Flask context but there is no token in this session.
+                # Clear any stale in-memory token so we don't serve another user's data.
+                self.access_token = None
+                self.refresh_token = None
+                self.token_expiry = None
+                return
         except RuntimeError:
-            pass  # No request context
+            pass  # No Flask request context — must be CLI mode
         
-        # Fall back to file (local dev only)
-        if not IS_VERCEL and os.path.exists(TOKEN_FILE):
+        # File fallback is ONLY for CLI mode (no Flask context)
+        if not in_flask_context and not IS_VERCEL and os.path.exists(TOKEN_FILE):
             try:
                 with open(TOKEN_FILE, 'r') as f:
                     token_data = json.load(f)
