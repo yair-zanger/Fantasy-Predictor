@@ -389,6 +389,80 @@
                 font-size: 0.9rem;
             }
         }
+
+        /* ── Global Side Menu ── */
+        .side-menu {
+            position: fixed;
+            top: 0;
+            left: -280px;
+            width: 280px;
+            height: 100vh;
+            background: var(--bg-card);
+            border-right: 2px solid var(--border-color);
+            z-index: 1000;
+            transition: left 0.3s ease;
+            padding: 5rem 1.5rem 2rem;
+            overflow-y: auto;
+        }
+
+        .side-menu.open {
+            left: 0;
+        }
+
+        .side-menu-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 999;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s;
+        }
+
+        .side-menu-overlay.open {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .side-menu-title {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: var(--accent-orange);
+            margin-bottom: 1.5rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .side-nav-link {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 1rem;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            color: var(--text-primary);
+            text-decoration: none;
+            margin-bottom: 0.75rem;
+            transition: all 0.3s;
+            font-size: 1rem;
+        }
+
+        .side-nav-link:hover {
+            background: var(--accent-blue);
+            border-color: var(--accent-blue);
+            color: white;
+            transform: translateX(5px);
+        }
+
+        .side-nav-link.active {
+            background: var(--accent-orange);
+            border-color: var(--accent-orange);
+            color: white;
+        }
     </style>
     {% block extra_styles %}{% endblock %}
 </head>
@@ -443,6 +517,32 @@
         </div>
     </nav>
 
+    <!-- Global Side Menu Overlay -->
+    <div class="side-menu-overlay" id="menuOverlay" onclick="toggleNav()"></div>
+
+    <!-- Global Side Menu -->
+    <div class="side-menu" id="sideMenu">
+        <div class="side-menu-title">📋 Navigation</div>
+        <a href="{{ url_for('dashboard') }}"
+            class="side-nav-link {% if request.endpoint == 'dashboard' %}active{% endif %}">
+            🏀 All Leagues
+        </a>
+        {% if league_key %}
+        <a href="{{ url_for('predict', league_key=league_key) }}"
+            class="side-nav-link {% if request.endpoint == 'predict' %}active{% endif %}">
+            🎯 My Matchup
+        </a>
+        <a href="{{ url_for('predict_all', league_key=league_key) }}"
+            class="side-nav-link {% if request.endpoint == 'predict_all' %}active{% endif %}">
+            📊 All Matchups
+        </a>
+        <a href="{{ url_for('standings', league_key=league_key) }}"
+            class="side-nav-link {% if request.endpoint == 'standings' %}active{% endif %}">
+            🏆 League Standings
+        </a>
+        {% endif %}
+    </div>
+
     <main class="container">
         {% block content %}{% endblock %}
     </main>
@@ -451,28 +551,29 @@
         function toggleNav() {
             const links = document.getElementById('navLinks');
             const btn = document.getElementById('navToggle');
-            links.classList.toggle('open');
-            btn.classList.toggle('open');
+            const menu = document.getElementById('sideMenu');
+            const overlay = document.getElementById('menuOverlay');
 
-            // If a page-specific side menu exists, toggle it too
-            if (typeof toggleSideMenu === 'function') {
-                toggleSideMenu();
-            }
+            if (links) links.classList.toggle('open');
+            if (btn) btn.classList.toggle('open');
+            if (menu) menu.classList.toggle('open');
+            if (overlay) overlay.classList.toggle('open');
         }
-        // Close when a link is clicked (mobile)
-        document.getElementById('navLinks').querySelectorAll('a').forEach(function (a) {
+        // Close when a side nav link is clicked
+        document.getElementById('sideMenu').querySelectorAll('a').forEach(function (a) {
             a.addEventListener('click', function () {
-                // Only auto-close on small screens where it was toggled open
-                if (window.innerWidth < 769) {
+                document.getElementById('sideMenu').classList.remove('open');
+                document.getElementById('menuOverlay').classList.remove('open');
+                document.getElementById('navToggle').classList.remove('open');
+                if (document.getElementById('navLinks')) {
                     document.getElementById('navLinks').classList.remove('open');
-                    document.getElementById('navToggle').classList.remove('open');
                 }
             });
         });
 
         // Add immediate visual feedback when clicking navigation links
         document.addEventListener('DOMContentLoaded', function () {
-            const allNavLinks = document.querySelectorAll('.nav-link, #navLinks a:not(.nav-cta)');
+            const allNavLinks = document.querySelectorAll('.side-nav-link, #navLinks a:not(.nav-cta)');
 
             allNavLinks.forEach(link => {
                 link.addEventListener('click', function (e) {
@@ -480,8 +581,8 @@
                     if (e.ctrlKey || e.metaKey || this.target === '_blank') return;
 
                     // If side menu link
-                    if (this.classList.contains('nav-link')) {
-                        document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+                    if (this.classList.contains('side-nav-link')) {
+                        document.querySelectorAll('.side-nav-link').forEach(l => l.classList.remove('active'));
                         this.classList.add('active');
                     } else {
                         // Top nav link
