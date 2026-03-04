@@ -664,10 +664,10 @@ def simulate_next_playoff_week(league_key: str, target_week: int, current_week: 
             
             if len(top_8) >= 8:
                 bracket = [
-                    {'team1': top_8[0], 'team2': top_8[7], 'seed1': top_8[0].get('rank', 1), 'seed2': top_8[7].get('rank', 8)},
-                    {'team1': top_8[3], 'team2': top_8[4], 'seed1': top_8[3].get('rank', 4), 'seed2': top_8[4].get('rank', 5)},
-                    {'team1': top_8[2], 'team2': top_8[5], 'seed1': top_8[2].get('rank', 3), 'seed2': top_8[5].get('rank', 6)},
-                    {'team1': top_8[1], 'team2': top_8[6], 'seed1': top_8[1].get('rank', 2), 'seed2': top_8[6].get('rank', 7)}
+                    {'team1': top_8[0], 'team2': top_8[7], 'seed1': top_8[0].get('rank', 1), 'seed2': top_8[7].get('rank', 8), 'match_label': 'Quarterfinal', 'match_type': 'quarterfinal'},
+                    {'team1': top_8[3], 'team2': top_8[4], 'seed1': top_8[3].get('rank', 4), 'seed2': top_8[4].get('rank', 5), 'match_label': 'Quarterfinal', 'match_type': 'quarterfinal'},
+                    {'team1': top_8[2], 'team2': top_8[5], 'seed1': top_8[2].get('rank', 3), 'seed2': top_8[5].get('rank', 6), 'match_label': 'Quarterfinal', 'match_type': 'quarterfinal'},
+                    {'team1': top_8[1], 'team2': top_8[6], 'seed1': top_8[1].get('rank', 2), 'seed2': top_8[6].get('rank', 7), 'match_label': 'Quarterfinal', 'match_type': 'quarterfinal'}
                 ]
             # Build consolation bracket for teams 9-12 (if league has consolation games)
             if has_consolation and num_consolation_teams > 0:
@@ -679,7 +679,9 @@ def simulate_next_playoff_week(league_key: str, target_week: int, current_week: 
                             'team2': consolation_teams[i + 1],
                             'seed1': consolation_teams[i].get('rank', i + 9),
                             'seed2': consolation_teams[i + 1].get('rank', i + 10),
-                            'is_consolation': True
+                            'is_consolation': True,
+                            'match_label': 'Consolation',
+                            'match_type': 'consolation'
                         })
                 
         # If we are already in the playoffs or doing rolling next-week
@@ -706,35 +708,38 @@ def simulate_next_playoff_week(league_key: str, target_week: int, current_week: 
             
             eliminated = losers
             
+            # Determine stage based on weeks remaining
+            rounds_remaining = end_week - target_week
+            
             # Sort winners so we can pair them correctly
-            # If 4 winners in a fixed bracket: highest seeds 1, 2, 3, 4
-            # NBA Style non-reseeded:
-            # Match 1: 1/8  vs  4/5
-            # Match 2: 2/7  vs  3/6
             if len(winners) == 4:
                 # Top bracket: seeds 1/8, 4/5
                 top_bracket = [w for w in winners if w['rank'] in [1, 8, 4, 5]]
                 # Bottom bracket: seeds 2/7, 3/6
                 bottom_bracket = [w for w in winners if w['rank'] in [2, 7, 3, 6]]
                 
-                # If there were upsets that mixed this up (e.g. 1, 5, 3, 7)
-                # Ensure we have teams in each bracket part. Otherwise fallback to simple rank order.
+                label = "Semifinal" if rounds_remaining == 1 else "Quarterfinal"
+                mtype = "semifinal" if rounds_remaining == 1 else "quarterfinal"
+                
                 if len(top_bracket) == 2 and len(bottom_bracket) == 2:
-                    bracket.append({'team1': top_bracket[0], 'team2': top_bracket[1]})
-                    bracket.append({'team1': bottom_bracket[0], 'team2': bottom_bracket[1]})
+                    bracket.append({'team1': top_bracket[0], 'team2': top_bracket[1], 'match_label': label, 'match_type': mtype})
+                    bracket.append({'team1': bottom_bracket[0], 'team2': bottom_bracket[1], 'match_label': label, 'match_type': mtype})
                 else:
-                    # Fallback to rank ordering: 1 plays 4, 2 plays 3
                     winners.sort(key=lambda x: x['rank'])
-                    bracket.append({'team1': winners[0], 'team2': winners[3]}) # 1 vs 4
-                    bracket.append({'team1': winners[1], 'team2': winners[2]}) # 2 vs 3
+                    bracket.append({'team1': winners[0], 'team2': winners[3], 'match_label': label, 'match_type': mtype})
+                    bracket.append({'team1': winners[1], 'team2': winners[2], 'match_label': label, 'match_type': mtype})
             elif len(winners) == 2:
-                bracket.append({'team1': winners[0], 'team2': winners[1]})
+                label = "Championship Final" if rounds_remaining == 0 else "Semifinal"
+                mtype = "championship_final" if rounds_remaining == 0 else "semifinal"
+                bracket.append({'team1': winners[0], 'team2': winners[1], 'match_label': label, 'match_type': mtype})
             else:
                 for i in range(0, len(winners), 2):
                     if i + 1 < len(winners):
                         bracket.append({
                             'team1': winners[i],
-                            'team2': winners[i+1]
+                            'team2': winners[i+1],
+                            'match_label': 'Playoff Match',
+                            'match_type': 'playoff'
                         })
             
             # Build consolation bracket from losers if league has consolation games
@@ -754,14 +759,38 @@ def simulate_next_playoff_week(league_key: str, target_week: int, current_week: 
                     loser_teams = [{'team_key': lk, 'name': lk, 'rank': 99} for lk in losers]
                 
                 loser_teams.sort(key=lambda x: x['rank'])
+                
+                # Consolation labels based on status
+                # If we have 2 losers in the final week, it's 3rd place!
+                # If we have 4 losers in the final week, it's 5th/7th place!
                 for i in range(0, len(loser_teams), 2):
                     if i + 1 < len(loser_teams):
+                        # Simple rank-based labeling for consolation
+                        rank1 = loser_teams[i]['rank']
+                        rank2 = loser_teams[i+1]['rank']
+                        
+                        label = "Consolation"
+                        mtype = "consolation"
+                        
+                        if rounds_remaining == 0:
+                            if rank1 <= 4 and rank2 <= 4:
+                                label = "3rd Place Match"
+                                mtype = "main_3rd_place"
+                            elif rank1 <= 6 and rank2 <= 6:
+                                label = "5th Place Match"
+                                mtype = "consolation_5th_place"
+                            else:
+                                label = "7th Place Match"
+                                mtype = "consolation_7th_place"
+                        
                         consolation_bracket.append({
                             'team1': loser_teams[i],
                             'team2': loser_teams[i + 1],
-                            'seed1': loser_teams[i].get('rank', i + 1),
-                            'seed2': loser_teams[i + 1].get('rank', i + 2),
-                            'is_consolation': True
+                            'seed1': rank1,
+                            'seed2': rank2,
+                            'is_consolation': True,
+                            'match_label': label,
+                            'match_type': mtype
                         })
     except Exception as e:
         debug_print(f"[Playoff Sim] Error generating bracket: {e}")

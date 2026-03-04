@@ -526,6 +526,8 @@ class FantasyPredictor:
                                 if t1.get('team_key') and t2.get('team_key'):
                                     matchups.append({
                                         'week': str(week),
+                                        'match_label': m.get('match_label'),
+                                        'match_type': m.get('match_type'),
                                         'teams': [
                                             {'team_key': t1['team_key'], 'name': t1.get('name', 'Team 1'), 'stats': {}},
                                             {'team_key': t2['team_key'], 'name': t2.get('name', 'Team 2'), 'stats': {}}
@@ -539,6 +541,8 @@ class FantasyPredictor:
                                     matchups.append({
                                         'week': str(week),
                                         'is_consolation': True,
+                                        'match_label': m.get('match_label'),
+                                        'match_type': m.get('match_type'),
                                         'teams': [
                                             {'team_key': t1['team_key'], 'name': t1.get('name', 'Team 1'), 'stats': {}, 'is_consolation': True},
                                             {'team_key': t2['team_key'], 'name': t2.get('name', 'Team 2'), 'stats': {}, 'is_consolation': True}
