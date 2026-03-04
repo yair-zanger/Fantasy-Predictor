@@ -251,7 +251,35 @@ class FantasyPredictor:
         matchup = self.api.get_matchup(my_team_info['team_key'], week)
         if not matchup or not matchup.get('opponent'):
             # This is likely a playoff week where the opponent hasn't been determined yet
-            raise PlayoffWeekError(week or 0)
+            # Fallback to simulated bracket to determine opponent dynamically ahead of time
+            opponent_key = None
+            opp_team_name = "Opponent"
+            try:
+                from app import simulate_next_playoff_week
+                sim = simulate_next_playoff_week(league_key, week, current_week)
+                bracket = sim.get('bracket', [])
+                for m in bracket:
+                    t1 = m.get('team1', {})
+                    t2 = m.get('team2', {})
+                    if t1.get('team_key') == my_team_info['team_key']:
+                        opponent_key = t2.get('team_key')
+                        opp_team_name = t2.get('name', opp_team_name)
+                        break
+                    elif t2.get('team_key') == my_team_info['team_key']:
+                        opponent_key = t1.get('team_key')
+                        opp_team_name = t1.get('name', opp_team_name)
+                        break
+            except Exception as e:
+                debug_print(f"[DEBUG] Error simulating playoff opponent: {e}")
+                
+            if opponent_key:
+                matchup = {
+                    'week': str(week),
+                    'my_team': {'team_key': my_team_info['team_key'], 'name': my_team_info.get('name', 'My Team'), 'stats': {}},
+                    'opponent': {'team_key': opponent_key, 'name': opp_team_name, 'stats': {}}
+                }
+            else:
+                raise PlayoffWeekError(week or 0)
         
         week_num = int(matchup.get('week', 0))
         
@@ -483,8 +511,36 @@ class FantasyPredictor:
             if league_info:
                 playoff_start_week = int(league_info.get('playoff_start_week', 0)) if league_info.get('playoff_start_week') else None
                 if playoff_start_week and week and week >= playoff_start_week:
-                    raise PlayoffWeekError(week, f"Week {week} is a playoff week - Matchups not determined yet")
-            return []
+                    try:
+                        from app import simulate_next_playoff_week
+                        sim = simulate_next_playoff_week(league_key, week, current_week)
+                        bracket = sim.get('bracket', [])
+                        if bracket:
+                            matchups = []
+                            for m in bracket:
+                                t1 = m.get('team1', {})
+                                t2 = m.get('team2', {})
+                                if t1.get('team_key') and t2.get('team_key'):
+                                    matchups.append({
+                                        'week': str(week),
+                                        'teams': [
+                                            {'team_key': t1['team_key'], 'name': t1.get('name', 'Team 1'), 'stats': {}},
+                                            {'team_key': t2['team_key'], 'name': t2.get('name', 'Team 2'), 'stats': {}}
+                                        ]
+                                    })
+                            if not matchups:
+                                raise PlayoffWeekError(week, f"Week {week} is a playoff week - Matchups not determined yet")
+                        else:
+                            raise PlayoffWeekError(week, f"Week {week} is a playoff week - Matchups not determined yet")
+                    except PlayoffWeekError:
+                        raise
+                    except Exception as e:
+                        debug_print(f"[DEBUG] Error simulating playoff opponents: {e}")
+                        raise PlayoffWeekError(week, f"Week {week} is a playoff week - Matchups not determined yet")
+                else:
+                    return []
+            else:
+                return []
         
         week_num = int(matchups[0].get('week', 0)) if matchups else 0
         
