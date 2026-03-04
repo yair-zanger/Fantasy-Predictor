@@ -524,8 +524,8 @@ def simulate_next_playoff_week(league_key: str, target_week: int, current_week: 
     """Project the playoff bracket for checking who advances."""
     from predictor import _get_prediction_cached, _set_prediction_cached
     
-    # Check cache (v3 for cache busting)
-    cache_key = f"playoff_sim_v3:{league_key}:{target_week}:{current_week}"
+    # Check cache (v4 for cache busting with consolation support)
+    cache_key = f"playoff_sim_v4:{league_key}:{target_week}:{current_week}"
     cached = _get_prediction_cached(cache_key)
     if cached is not None:
         return cached
@@ -536,8 +536,12 @@ def simulate_next_playoff_week(league_key: str, target_week: int, current_week: 
         return {}
         
     playoff_start_week = int(league_info.get('playoff_start_week', 22)) if league_info.get('playoff_start_week') else 22
+    # Consolation settings
+    has_consolation = league_info.get('has_playoff_consolation_games', '0') == '1'
+    num_consolation_teams = int(league_info.get('num_playoff_consolation_teams', 0) or 0)
     
     bracket = []
+    consolation_bracket = []
     eliminated = []
     my_team_status = ""
     my_team = api.get_my_team(league_key)
@@ -569,6 +573,18 @@ def simulate_next_playoff_week(league_key: str, target_week: int, current_week: 
                     {'team1': top_8[2], 'team2': top_8[5], 'seed1': top_8[2].get('rank', 3), 'seed2': top_8[5].get('rank', 6)},
                     {'team1': top_8[1], 'team2': top_8[6], 'seed1': top_8[1].get('rank', 2), 'seed2': top_8[6].get('rank', 7)}
                 ]
+            # Build consolation bracket for teams 9-12 (if league has consolation games)
+            if has_consolation and num_consolation_teams > 0:
+                consolation_teams = projected_standings[8:8 + num_consolation_teams]
+                for i in range(0, len(consolation_teams), 2):
+                    if i + 1 < len(consolation_teams):
+                        consolation_bracket.append({
+                            'team1': consolation_teams[i],
+                            'team2': consolation_teams[i + 1],
+                            'seed1': consolation_teams[i].get('rank', i + 9),
+                            'seed2': consolation_teams[i + 1].get('rank', i + 10),
+                            'is_consolation': True
+                        })
                 
         # If we are already in the playoffs or doing rolling next-week
         elif target_week > current_week and current_week >= playoff_start_week:
@@ -624,6 +640,33 @@ def simulate_next_playoff_week(league_key: str, target_week: int, current_week: 
                             'team1': winners[i],
                             'team2': winners[i+1]
                         })
+            
+            # Build consolation bracket from losers if league has consolation games
+            if has_consolation and len(losers) >= 2:
+                # Fetch full team data for losers from standings
+                loser_teams = []
+                try:
+                    standings_data = api.get_league_standings(league_key)
+                    loser_map = {t['team_key']: t for t in standings_data}
+                    for lk in losers:
+                        if lk in loser_map:
+                            lt = loser_map[lk]
+                            loser_teams.append({'team_key': lk, 'name': lt.get('name', lk), 'rank': lt.get('rank', 99)})
+                        else:
+                            loser_teams.append({'team_key': lk, 'name': lk, 'rank': 99})
+                except Exception:
+                    loser_teams = [{'team_key': lk, 'name': lk, 'rank': 99} for lk in losers]
+                
+                loser_teams.sort(key=lambda x: x['rank'])
+                for i in range(0, len(loser_teams), 2):
+                    if i + 1 < len(loser_teams):
+                        consolation_bracket.append({
+                            'team1': loser_teams[i],
+                            'team2': loser_teams[i + 1],
+                            'seed1': loser_teams[i].get('rank', i + 1),
+                            'seed2': loser_teams[i + 1].get('rank', i + 2),
+                            'is_consolation': True
+                        })
     except Exception as e:
         debug_print(f"[Playoff Sim] Error generating bracket: {e}")
         import traceback
@@ -631,7 +674,14 @@ def simulate_next_playoff_week(league_key: str, target_week: int, current_week: 
         return {'bracket': [], 'eliminated': [], 'my_team_status': '', 'error': str(e)}
 
     if my_team_key in eliminated:
-        my_team_status = "eliminated"
+        # Check if they're in consolation bracket
+        in_consolation = False
+        for match in consolation_bracket:
+            if match.get('team1', {}).get('team_key') == my_team_key or \
+               match.get('team2', {}).get('team_key') == my_team_key:
+                in_consolation = True
+                break
+        my_team_status = "consolation" if in_consolation else "eliminated"
     else:
         in_bracket = False
         for match in bracket:
@@ -642,11 +692,18 @@ def simulate_next_playoff_week(league_key: str, target_week: int, current_week: 
         if in_bracket:
             my_team_status = "advancing"
         else:
-            # If not in the bracket and it's a playoff week, they have been eliminated
-            my_team_status = "eliminated"
+            # If not in the championship bracket, could be in consolation
+            in_consolation = any(
+                match.get('team1', {}).get('team_key') == my_team_key or
+                match.get('team2', {}).get('team_key') == my_team_key
+                for match in consolation_bracket
+            )
+            my_team_status = "consolation" if in_consolation else "eliminated"
             
     result = {
         'bracket': bracket,
+        'consolation_bracket': consolation_bracket,
+        'has_consolation': has_consolation,
         'eliminated': eliminated,
         'my_team_status': my_team_status
     }

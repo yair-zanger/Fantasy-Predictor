@@ -221,11 +221,33 @@ class YahooFantasyAPI:
                 'start_week': self._get_text(league, 'yh:start_week'),
                 'end_week': self._get_text(league, 'yh:end_week'),
                 'playoff_start_week': playoff_start_week,
+                # Consolation bracket settings
+                'has_playoff_consolation_games': (
+                    self._get_text(league, './/yh:has_playoff_consolation_games') or
+                    self._get_text(league, 'yh:settings/yh:has_playoff_consolation_games') or '0'
+                ),
+                'num_playoff_consolation_teams': (
+                    self._get_text(league, './/yh:num_playoff_consolation_teams') or
+                    self._get_text(league, 'yh:settings/yh:num_playoff_consolation_teams') or '0'
+                ),
+                'num_playoff_teams': (
+                    self._get_text(league, './/yh:num_playoff_teams') or
+                    self._get_text(league, 'yh:settings/yh:num_playoff_teams') or '8'
+                ),
+                'uses_playoff_reseeding': (
+                    self._get_text(league, './/yh:uses_playoff_reseeding') or
+                    self._get_text(league, 'yh:settings/yh:uses_playoff_reseeding') or '0'
+                ),
+                'playoff_matchup_length': (
+                    self._get_text(league, './/yh:playoff_matchup_length') or
+                    self._get_text(league, 'yh:settings/yh:playoff_matchup_length') or '1'
+                ),
             }
             leagues.append(league_data)
         
         _set_cached(cache_key, leagues, CACHE_TTL['leagues'])
         return leagues
+
     
     def get_logged_in_user_name(self) -> str:
         """Get the nickname of the currently logged-in user from their teams"""
