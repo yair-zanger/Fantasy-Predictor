@@ -515,8 +515,11 @@ class FantasyPredictor:
                         from app import simulate_next_playoff_week
                         sim = simulate_next_playoff_week(league_key, week, current_week)
                         bracket = sim.get('bracket', [])
-                        if bracket:
+                        consolation = sim.get('consolation_bracket', [])
+                        
+                        if bracket or consolation:
                             matchups = []
+                            # Process main bracket
                             for m in bracket:
                                 t1 = m.get('team1', {})
                                 t2 = m.get('team2', {})
@@ -528,6 +531,20 @@ class FantasyPredictor:
                                             {'team_key': t2['team_key'], 'name': t2.get('name', 'Team 2'), 'stats': {}}
                                         ]
                                     })
+                            # Process consolation bracket
+                            for m in consolation:
+                                t1 = m.get('team1', {})
+                                t2 = m.get('team2', {})
+                                if t1.get('team_key') and t2.get('team_key'):
+                                    matchups.append({
+                                        'week': str(week),
+                                        'is_consolation': True,
+                                        'teams': [
+                                            {'team_key': t1['team_key'], 'name': t1.get('name', 'Team 1'), 'stats': {}, 'is_consolation': True},
+                                            {'team_key': t2['team_key'], 'name': t2.get('name', 'Team 2'), 'stats': {}, 'is_consolation': True}
+                                        ]
+                                    })
+                            
                             if not matchups:
                                 raise PlayoffWeekError(week, f"Week {week} is a playoff week - Matchups not determined yet")
                         else:

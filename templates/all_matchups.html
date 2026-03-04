@@ -328,6 +328,22 @@
         margin-right: 0.5rem;
     }
 
+    .consolation-matchup {
+        border: 1px dashed var(--accent-yellow) !important;
+        opacity: 0.95;
+    }
+
+    .consolation-header {
+        background: rgba(255, 195, 0, 0.1);
+        padding: 0.4rem;
+        text-align: center;
+        color: var(--accent-yellow);
+        font-size: 0.75rem;
+        font-weight: 700;
+        border-bottom: 1px solid var(--border-color);
+        letter-spacing: 0.05em;
+    }
+
     /* Categories Breakdown */
     .categories-toggle {
         display: flex;
@@ -522,8 +538,13 @@
     <!-- Matchups Grid -->
     <div class="matchups-grid">
         {% for matchup in predictions %}
-        <div class="matchup-card {% if matchup.team1.key == my_team_key or matchup.team2.key == my_team_key %}my-matchup{% endif %}"
+        <div class="matchup-card {% if matchup.team1.key == my_team_key or matchup.team2.key == my_team_key %}my-matchup{% endif %} {% if matchup.is_consolation %}consolation-matchup{% endif %}"
             style="animation-delay: {{ loop.index * 0.1 }}s">
+
+            {% if matchup.is_consolation %}
+            <div class="consolation-header">🥈 CONSOLATION MATCHUP</div>
+            {% endif %}
+
             <div class="matchup-header">
                 <div class="label">Projected Result</div>
                 <div class="score">{{ matchup.predicted_score }}</div>
@@ -614,8 +635,18 @@
                 <div class="summary-label">Matchups</div>
             </div>
             <div class="summary-item">
-                <div class="summary-value">{{ predictions|length * 2 }}</div>
-                <div class="summary-label">Active Teams</div>
+                {% set main_matches = predictions|rejectattr('is_consolation', 'defined')|list|length +
+                predictions|selectattr('is_consolation', 'defined')|rejectattr('is_consolation')|list|length %}
+                {% set consolation_matches = predictions|selectattr('is_consolation',
+                'defined')|selectattr('is_consolation')|list|length %}
+                <div class="summary-value"
+                    style="display: flex; align-items: baseline; justify-content: center; gap: 0.5rem;">
+                    {{ main_matches }}
+                    {% if consolation_matches > 0 %}
+                    <span style="font-size: 1rem; color: var(--accent-yellow);">+ {{ consolation_matches }}🥈</span>
+                    {% endif %}
+                </div>
+                <div class="summary-label">Bracket Type</div>
             </div>
             <div class="summary-item">
                 {% set close_games = predictions|selectattr('team1.wins', 'ge', 4)|selectattr('team2.wins', 'ge',
