@@ -575,7 +575,9 @@ def simulate_next_playoff_week(league_key: str, target_week: int, current_week: 
             standings_data = api.get_league_standings(league_key)
             rank_map = {t['team_key']: t.get('rank', 99) for t in standings_data}
             
-            predictions = predictor.predict_all_matchups(league_key, current_week, current_week)
+            # Predict the previous week's matchups to find out who advances to this target_week
+            prev_week = target_week - 1
+            predictions = predictor.predict_all_matchups(league_key, prev_week, current_week)
             winners = []
             losers = []
             for match in predictions:
@@ -639,6 +641,9 @@ def simulate_next_playoff_week(league_key: str, target_week: int, current_week: 
                 break
         if in_bracket:
             my_team_status = "advancing"
+        else:
+            # If not in the bracket and it's a playoff week, they have been eliminated
+            my_team_status = "eliminated"
             
     result = {
         'bracket': bracket,
