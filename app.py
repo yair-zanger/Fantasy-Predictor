@@ -632,6 +632,7 @@ def simulate_next_playoff_week(league_key: str, target_week: int, current_week: 
         return {}
         
     playoff_start_week = int(league_info.get('playoff_start_week', 22)) if league_info.get('playoff_start_week') else 22
+    end_week = int(league_info.get('end_week', 24)) if league_info.get('end_week') else 24
     # Consolation settings
     has_consolation = league_info.get('has_playoff_consolation_games', '0') == '1'
     num_consolation_teams = int(league_info.get('num_playoff_consolation_teams', 0) or 0)
@@ -684,8 +685,8 @@ def simulate_next_playoff_week(league_key: str, target_week: int, current_week: 
                             'match_type': 'consolation'
                         })
                 
-        # If we are already in the playoffs or doing rolling next-week
-        elif target_week > current_week and current_week >= playoff_start_week:
+        # If we are already in the playoffs OR predicting a future week deep in the playoffs
+        elif target_week > playoff_start_week and target_week > current_week:
             standings_data = api.get_league_standings(league_key)
             rank_map = {t['team_key']: t.get('rank', 99) for t in standings_data}
             
