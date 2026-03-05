@@ -689,6 +689,7 @@ def simulate_next_playoff_week(league_key: str, target_week: int, current_week: 
         elif target_week > playoff_start_week and target_week > current_week:
             standings_data = api.get_league_standings(league_key)
             rank_map = {t['team_key']: t.get('rank', 99) for t in standings_data}
+            standings_map = {t['team_key']: t for t in standings_data}
 
             prev_week = target_week - 1
             winners = []
@@ -728,17 +729,22 @@ def simulate_next_playoff_week(league_key: str, target_week: int, current_week: 
                             losers.append(t1_key)
 
             except Exception as pred_e:
-                debug_print(f"[Playoff Sim] predict_all_matchups failed for week {prev_week}: {pred_e}. Falling back to seeding.")
-                # Fallback: simulate prev week bracket and use seeding
+                debug_print(f"[Playoff Sim] predict_all_matchups failed for week {prev_week}: {pred_e}. Falling back to win% prediction.")
+                # Fallback: simulate prev week bracket and use season win% to predict winners
                 prev_sim = simulate_next_playoff_week(league_key, prev_week, current_week)
                 for match in prev_sim.get('bracket', []):
                     t1 = match.get('team1', {})
                     t2 = match.get('team2', {})
                     t1_key = t1.get('team_key') or t1.get('key')
                     t2_key = t2.get('team_key') or t2.get('key')
+                    t1_s = standings_map.get(t1_key, {})
+                    t2_s = standings_map.get(t2_key, {})
+                    t1_pct = t1_s.get('win_pct', 0)
+                    t2_pct = t2_s.get('win_pct', 0)
                     t1_rank = rank_map.get(t1_key, t1.get('rank', 99))
                     t2_rank = rank_map.get(t2_key, t2.get('rank', 99))
-                    if t1_rank <= t2_rank:
+                    # Team with higher win% advances; seeding is tiebreaker
+                    if t1_pct > t2_pct or (t1_pct == t2_pct and t1_rank <= t2_rank):
                         winners.append({'team_key': t1_key, 'name': t1.get('name'), 'rank': t1_rank})
                         losers.append(t2_key)
                     else:
@@ -839,17 +845,38 @@ def simulate_next_playoff_week(league_key: str, target_week: int, current_week: 
         fallback_status = ""
         try:
             standings = api.get_league_standings(league_key)
+            standings_map_fb = {t['team_key']: t for t in standings}
             my_rank = next((t.get('rank', 99) for t in standings if t['team_key'] == my_team_key), 99)
             num_playoff_teams = int(league_info.get('num_playoff_teams', 8)) if league_info else 8
             rounds_into_playoffs = max(0, target_week - playoff_start_week)
-            # After each round, half the championship teams remain
-            expected_remaining = num_playoff_teams // (2 ** rounds_into_playoffs)
-            if my_rank <= expected_remaining:
+            # Simulate first round bracket to find my opponent
+            first_round_sim = simulate_next_playoff_week(league_key, playoff_start_week, current_week)
+            # Walk through bracket to find my team's match and predict outcome by win%
+            my_first_round_status = None
+            for match in first_round_sim.get('bracket', []):
+                t1 = match.get('team1', {})
+                t2 = match.get('team2', {})
+                t1_key = t1.get('team_key') or t1.get('key')
+                t2_key = t2.get('team_key') or t2.get('key')
+                if my_team_key in [t1_key, t2_key]:
+                    opp_key = t2_key if t1_key == my_team_key else t1_key
+                    my_pct = standings_map_fb.get(my_team_key, {}).get('win_pct', 0)
+                    opp_pct = standings_map_fb.get(opp_key, {}).get('win_pct', 0)
+                    opp_rank = standings_map_fb.get(opp_key, {}).get('rank', 99)
+                    if my_pct > opp_pct or (my_pct == opp_pct and my_rank <= opp_rank):
+                        my_first_round_status = "advancing"
+                    else:
+                        my_first_round_status = "consolation" if (league_info and league_info.get('has_playoff_consolation_games', '0') == '1') else "eliminated"
+                    break
+            if my_first_round_status and rounds_into_playoffs > 0:
+                # For rounds 2+, only show advancement if survived prior rounds too
+                fallback_status = my_first_round_status if rounds_into_playoffs <= 1 else "advancing" if my_rank <= num_playoff_teams // (2 ** rounds_into_playoffs) else "consolation"
+            elif my_first_round_status:
+                # For the first playoff week itself (quarterfinals), everyone in top-8 is playing
                 fallback_status = "advancing"
-            elif league_info and league_info.get('has_playoff_consolation_games', '0') == '1':
-                fallback_status = "consolation"
             else:
-                fallback_status = "eliminated"
+                # My team not in bracket → eliminated or consolation
+                fallback_status = "consolation" if (league_info and league_info.get('has_playoff_consolation_games', '0') == '1') else "eliminated"
         except Exception:
             pass
         return {'bracket': [], 'consolation_bracket': [], 'eliminated': [], 'my_team_status': fallback_status, 'error': str(e)}
