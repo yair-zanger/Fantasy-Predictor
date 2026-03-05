@@ -1026,6 +1026,30 @@ def logout():
     return redirect(url_for('login'))
 
 
+@app.route('/api/clear-roster-cache')
+@login_required
+def api_clear_roster_cache():
+    """JSON API: clear cache for the current user and return success."""
+    try:
+        guid = api.get_user_guid()
+        from yahoo_api import clear_user_cache
+        clear_user_cache(guid)
+        try:
+            predictor.clear_cache()
+        except Exception as e:
+            debug_print(f"[Cache] Error wiping predictor cache: {e}")
+        # Re-trigger background pre-warm
+        try:
+            if auth.is_authenticated():
+                leagues = api.get_user_leagues()
+                threading.Thread(target=_warm_league_caches, args=(leagues,), daemon=True).start()
+        except Exception as e:
+            debug_print(f"[Cache] Error re-triggering pre-warm: {e}")
+        return jsonify({'success': True, 'message': 'Cache cleared successfully'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @app.route('/clear_cache')
 @login_required
 def clear_cache_route():
