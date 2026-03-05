@@ -835,7 +835,24 @@ def simulate_next_playoff_week(league_key: str, target_week: int, current_week: 
         debug_print(f"[Playoff Sim] Error generating bracket: {e}")
         import traceback
         traceback.print_exc()
-        return {'bracket': [], 'eliminated': [], 'my_team_status': '', 'error': str(e)}
+        # Even if full simulation fails, try to determine my_team_status from seeding
+        fallback_status = ""
+        try:
+            standings = api.get_league_standings(league_key)
+            my_rank = next((t.get('rank', 99) for t in standings if t['team_key'] == my_team_key), 99)
+            num_playoff_teams = int(league_info.get('num_playoff_teams', 8)) if league_info else 8
+            rounds_into_playoffs = max(0, target_week - playoff_start_week)
+            # After each round, half the championship teams remain
+            expected_remaining = num_playoff_teams // (2 ** rounds_into_playoffs)
+            if my_rank <= expected_remaining:
+                fallback_status = "advancing"
+            elif league_info and league_info.get('has_playoff_consolation_games', '0') == '1':
+                fallback_status = "consolation"
+            else:
+                fallback_status = "eliminated"
+        except Exception:
+            pass
+        return {'bracket': [], 'consolation_bracket': [], 'eliminated': [], 'my_team_status': fallback_status, 'error': str(e)}
 
     if my_team_key in eliminated:
         # Check if they're in consolation bracket

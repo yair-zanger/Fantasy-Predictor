@@ -148,38 +148,34 @@
     <h1 class="playoff-title">Playoff Week! 🏆</h1>
     <p class="playoff-message">{{ message }}</p>
 
-    {% if simulation and simulation.bracket %}
+    {% if simulation %}
+    <!-- My team status - shown regardless of bracket availability -->
+    {% if simulation.my_team_status == 'eliminated' %}
+    <div
+        style="background: rgba(255, 60, 60, 0.1); border: 1px solid #ff6b6b; padding: 1rem; border-radius: 12px; margin-bottom: 2rem; max-width: 500px;">
+        <h3 style="color: #ff6b6b; margin: 0;">❌ Projected to be Eliminated</h3>
+        <p style="margin: 0.5rem 0 0 0; color: var(--text-secondary);">Your team is not projected to advance to this
+            round.</p>
+    </div>
+    {% elif simulation.my_team_status == 'consolation' %}
+    <div
+        style="background: rgba(255, 195, 0, 0.1); border: 1px solid var(--accent-yellow); padding: 1rem; border-radius: 12px; margin-bottom: 2rem; max-width: 500px;">
+        <h3 style="color: var(--accent-yellow); margin: 0;">🥈 Projected for Consolation Bracket</h3>
+        <p style="margin: 0.5rem 0 0 0; color: var(--text-secondary);">Your team didn't advance to the championship
+            round, but you're projected to play in the consolation bracket.</p>
+    </div>
+    {% elif simulation.my_team_status == 'advancing' %}
+    <div
+        style="background: rgba(46, 213, 115, 0.1); border: 1px solid #2ed573; padding: 1rem; border-radius: 12px; margin-bottom: 2rem; max-width: 500px;">
+        <h3 style="color: #2ed573; margin: 0;">✅ Projected to Advance!</h3>
+        <p style="margin: 0.5rem 0 0 0; color: var(--text-secondary);">Your team is projected to make it to this round.
+        </p>
+    </div>
+    {% endif %}
+
+    {% if simulation.bracket %}
     <div class="simulation-section" style="margin-top: 1rem; margin-bottom: 2rem; width: 100%; max-width: 800px;">
         <h2 style="color: var(--accent-yellow); margin-bottom: 1.5rem;">🔮 Projected Next Round</h2>
-
-        {% if simulation.my_team_status == 'eliminated' %}
-        <div
-            style="background: rgba(255, 60, 60, 0.1); border: 1px solid #ff6b6b; padding: 1rem; border-radius: 12px; margin-bottom: 2rem;">
-            <h3 style="color: #ff6b6b; margin: 0;">❌ Projected to be Eliminated</h3>
-            <p style="margin: 0.5rem 0 0 0; color: var(--text-secondary);">Your team is not projected to advance to this
-                round.</p>
-        </div>
-        {% elif simulation.my_team_status == 'consolation' %}
-        <div
-            style="background: rgba(255, 195, 0, 0.1); border: 1px solid var(--accent-yellow); padding: 1rem; border-radius: 12px; margin-bottom: 2rem;">
-            <h3 style="color: var(--accent-yellow); margin: 0;">🥈 Projected for Consolation Bracket</h3>
-            <p style="margin: 0.5rem 0 0 0; color: var(--text-secondary);">Your team didn't advance to the championship
-                round, but you're projected to play in the consolation bracket.</p>
-        </div>
-        {% elif simulation.my_team_status == 'advancing' %}
-        <div
-            style="background: rgba(46, 213, 115, 0.1); border: 1px solid #2ed573; padding: 1rem; border-radius: 12px; margin-bottom: 2rem;">
-            <h3 style="color: #2ed573; margin: 0;">✅ Projected to Advance!</h3>
-            <p style="margin: 0.5rem 0 0 0; color: var(--text-secondary);">Your team is projected to make it to this
-                round.</p>
-        </div>
-        {% elif simulation.error %}
-        <div
-            style="background: rgba(255, 60, 60, 0.1); border: 1px solid #ff6b6b; padding: 1rem; border-radius: 12px; margin-bottom: 2rem;">
-            <h3 style="color: #ff6b6b; margin: 0;">⚠️ Internal Simulation Error</h3>
-            <p style="margin: 0.5rem 0 0 0; color: var(--text-secondary);">{{ simulation.error }}</p>
-        </div>
-        {% endif %}
 
         <div class="bracket-grid"
             style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem; text-align: left;">
@@ -243,9 +239,10 @@
         <div class="playoff-info-text">
             During playoff weeks, matchups are determined by previous weeks' results.
             <br><br>
-            Your opponent has not been determined yet — check back when the playoffs begin!
+            Matchups have not been set yet — check back when the playoffs begin!
         </div>
     </div>
+    {% endif %}
     {% endif %}
 
     <!-- Week Navigation -->
