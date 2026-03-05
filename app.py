@@ -621,7 +621,7 @@ def simulate_next_playoff_week(league_key: str, target_week: int, current_week: 
     from predictor import _get_prediction_cached, _set_prediction_cached
     
     # Check cache (v4 for cache busting with consolation support)
-    cache_key = f"playoff_sim_v5:{league_key}:{target_week}:{current_week}"
+    cache_key = f"playoff_sim_v6:{league_key}:{target_week}:{current_week}"
     cached = _get_prediction_cached(cache_key)
     if cached is not None:
         return cached
@@ -689,46 +689,61 @@ def simulate_next_playoff_week(league_key: str, target_week: int, current_week: 
         elif target_week > playoff_start_week and target_week > current_week:
             standings_data = api.get_league_standings(league_key)
             rank_map = {t['team_key']: t.get('rank', 99) for t in standings_data}
-            
-            # Simulate the PREVIOUS week's bracket to find who advances to this target_week.
-            # We use recursive simulation instead of predict_all_matchups because the previous
-            # week may not have real Yahoo matchups yet (for future weeks).
-            prev_week = target_week - 1
-            prev_sim = simulate_next_playoff_week(league_key, prev_week, current_week)
-            prev_bracket = prev_sim.get('bracket', [])
-            prev_consolation = prev_sim.get('consolation_bracket', [])
 
+            prev_week = target_week - 1
             winners = []
             losers = []
 
-            for match in prev_bracket:
-                t1 = match.get('team1', {})
-                t2 = match.get('team2', {})
-                t1_key = t1.get('team_key') or t1.get('key')
-                t2_key = t2.get('team_key') or t2.get('key')
-                t1_name = t1.get('name', t1_key)
-                t2_name = t2.get('name', t2_key)
-                t1_rank = rank_map.get(t1_key, t1.get('rank', 99))
-                t2_rank = rank_map.get(t2_key, t2.get('rank', 99))
-                # Higher seed (lower rank number) wins
-                if t1_rank <= t2_rank:
-                    winners.append({'team_key': t1_key, 'name': t1_name, 'rank': t1_rank})
-                    losers.append(t2_key)
-                else:
-                    winners.append({'team_key': t2_key, 'name': t2_name, 'rank': t2_rank})
-                    losers.append(t1_key)
+            try:
+                # Use real predictions (roster + BBRef stats) for prev_week.
+                # predict_all_matchups handles simulated weeks internally by calling
+                # simulate_next_playoff_week for the bracket, so rosters are fetched
+                # using real team_keys and actual projections are computed.
+                prev_predictions = predictor.predict_all_matchups(league_key, prev_week, current_week)
 
-            for match in prev_consolation:
-                t1 = match.get('team1', {})
-                t2 = match.get('team2', {})
-                t1_key = t1.get('team_key') or t1.get('key')
-                t2_key = t2.get('team_key') or t2.get('key')
-                t1_rank = rank_map.get(t1_key, t1.get('rank', 99))
-                t2_rank = rank_map.get(t2_key, t2.get('rank', 99))
-                if t1_rank <= t2_rank:
-                    losers.append(t2_key)
-                else:
-                    losers.append(t1_key)
+                for match in prev_predictions:
+                    if match.get('is_consolation'):
+                        continue  # Only championship bracket for now
+                    t1 = match.get('team1', {})
+                    t2 = match.get('team2', {})
+                    t1_key = t1.get('key') or t1.get('team_key')
+                    t2_key = t2.get('key') or t2.get('team_key')
+                    t1_rank = rank_map.get(t1_key, 99)
+                    t2_rank = rank_map.get(t2_key, 99)
+                    winner_key = match.get('winner_key')
+
+                    if winner_key == t1_key:
+                        winners.append({'team_key': t1_key, 'name': t1.get('name'), 'rank': t1_rank})
+                        losers.append(t2_key)
+                    elif winner_key == t2_key:
+                        winners.append({'team_key': t2_key, 'name': t2.get('name'), 'rank': t2_rank})
+                        losers.append(t1_key)
+                    else:
+                        # Tie or unknown - use seeding as tiebreaker
+                        if t1_rank <= t2_rank:
+                            winners.append({'team_key': t1_key, 'name': t1.get('name'), 'rank': t1_rank})
+                            losers.append(t2_key)
+                        else:
+                            winners.append({'team_key': t2_key, 'name': t2.get('name'), 'rank': t2_rank})
+                            losers.append(t1_key)
+
+            except Exception as pred_e:
+                debug_print(f"[Playoff Sim] predict_all_matchups failed for week {prev_week}: {pred_e}. Falling back to seeding.")
+                # Fallback: simulate prev week bracket and use seeding
+                prev_sim = simulate_next_playoff_week(league_key, prev_week, current_week)
+                for match in prev_sim.get('bracket', []):
+                    t1 = match.get('team1', {})
+                    t2 = match.get('team2', {})
+                    t1_key = t1.get('team_key') or t1.get('key')
+                    t2_key = t2.get('team_key') or t2.get('key')
+                    t1_rank = rank_map.get(t1_key, t1.get('rank', 99))
+                    t2_rank = rank_map.get(t2_key, t2.get('rank', 99))
+                    if t1_rank <= t2_rank:
+                        winners.append({'team_key': t1_key, 'name': t1.get('name'), 'rank': t1_rank})
+                        losers.append(t2_key)
+                    else:
+                        winners.append({'team_key': t2_key, 'name': t2.get('name'), 'rank': t2_rank})
+                        losers.append(t1_key)
 
             eliminated = losers
             
