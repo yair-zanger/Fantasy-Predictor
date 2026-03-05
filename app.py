@@ -621,7 +621,7 @@ def simulate_next_playoff_week(league_key: str, target_week: int, current_week: 
     from predictor import _get_prediction_cached, _set_prediction_cached
     
     # Check cache (v4 for cache busting with consolation support)
-    cache_key = f"playoff_sim_v6:{league_key}:{target_week}:{current_week}"
+    cache_key = f"playoff_sim_v7:{league_key}:{target_week}:{current_week}"
     cached = _get_prediction_cached(cache_key)
     if cached is not None:
         return cached
@@ -687,156 +687,76 @@ def simulate_next_playoff_week(league_key: str, target_week: int, current_week: 
                 
         # If we are already in the playoffs OR predicting a future week deep in the playoffs
         elif target_week > playoff_start_week and target_week > current_week:
-            standings_data = api.get_league_standings(league_key)
-            rank_map = {t['team_key']: t.get('rank', 99) for t in standings_data}
-            standings_map = {t['team_key']: t for t in standings_data}
-
-            prev_week = target_week - 1
-            winners = []
-            losers = []
-
-            try:
-                # Use real predictions (roster + BBRef stats) for prev_week.
-                # predict_all_matchups handles simulated weeks internally by calling
-                # simulate_next_playoff_week for the bracket, so rosters are fetched
-                # using real team_keys and actual projections are computed.
-                prev_predictions = predictor.predict_all_matchups(league_key, prev_week, current_week)
-
-                for match in prev_predictions:
-                    if match.get('is_consolation'):
-                        continue  # Only championship bracket for now
-                    t1 = match.get('team1', {})
-                    t2 = match.get('team2', {})
-                    t1_key = t1.get('key') or t1.get('team_key')
-                    t2_key = t2.get('key') or t2.get('team_key')
-                    t1_rank = rank_map.get(t1_key, 99)
-                    t2_rank = rank_map.get(t2_key, 99)
-                    winner_key = match.get('winner_key')
-
-                    if winner_key == t1_key:
-                        winners.append({'team_key': t1_key, 'name': t1.get('name'), 'rank': t1_rank})
-                        losers.append(t2_key)
-                    elif winner_key == t2_key:
-                        winners.append({'team_key': t2_key, 'name': t2.get('name'), 'rank': t2_rank})
-                        losers.append(t1_key)
-                    else:
-                        # Tie or unknown - use seeding as tiebreaker
-                        if t1_rank <= t2_rank:
-                            winners.append({'team_key': t1_key, 'name': t1.get('name'), 'rank': t1_rank})
-                            losers.append(t2_key)
-                        else:
-                            winners.append({'team_key': t2_key, 'name': t2.get('name'), 'rank': t2_rank})
-                            losers.append(t1_key)
-
-            except Exception as pred_e:
-                debug_print(f"[Playoff Sim] predict_all_matchups failed for week {prev_week}: {pred_e}. Falling back to win% prediction.")
-                # Fallback: simulate prev week bracket and use season win% to predict winners
-                prev_sim = simulate_next_playoff_week(league_key, prev_week, current_week)
-                for match in prev_sim.get('bracket', []):
-                    t1 = match.get('team1', {})
-                    t2 = match.get('team2', {})
-                    t1_key = t1.get('team_key') or t1.get('key')
-                    t2_key = t2.get('team_key') or t2.get('key')
-                    t1_s = standings_map.get(t1_key, {})
-                    t2_s = standings_map.get(t2_key, {})
-                    t1_pct = t1_s.get('win_pct', 0)
-                    t2_pct = t2_s.get('win_pct', 0)
-                    t1_rank = rank_map.get(t1_key, t1.get('rank', 99))
-                    t2_rank = rank_map.get(t2_key, t2.get('rank', 99))
-                    # Team with higher win% advances; seeding is tiebreaker
-                    if t1_pct > t2_pct or (t1_pct == t2_pct and t1_rank <= t2_rank):
-                        winners.append({'team_key': t1_key, 'name': t1.get('name'), 'rank': t1_rank})
-                        losers.append(t2_key)
-                    else:
-                        winners.append({'team_key': t2_key, 'name': t2.get('name'), 'rank': t2_rank})
-                        losers.append(t1_key)
-
-            eliminated = losers
-            
-            # Determine stage based on weeks remaining
-            rounds_remaining = end_week - target_week
-            
-            # Sort winners so we can pair them correctly
-            if len(winners) == 4:
-                # Top bracket: seeds 1/8, 4/5
-                top_bracket = [w for w in winners if w['rank'] in [1, 8, 4, 5]]
-                # Bottom bracket: seeds 2/7, 3/6
-                bottom_bracket = [w for w in winners if w['rank'] in [2, 7, 3, 6]]
-                
-                label = "Semifinal" if rounds_remaining == 1 else "Quarterfinal"
-                mtype = "semifinal" if rounds_remaining == 1 else "quarterfinal"
-                
-                if len(top_bracket) == 2 and len(bottom_bracket) == 2:
-                    bracket.append({'team1': top_bracket[0], 'team2': top_bracket[1], 'match_label': label, 'match_type': mtype})
-                    bracket.append({'team1': bottom_bracket[0], 'team2': bottom_bracket[1], 'match_label': label, 'match_type': mtype})
-                else:
-                    winners.sort(key=lambda x: x['rank'])
-                    bracket.append({'team1': winners[0], 'team2': winners[3], 'match_label': label, 'match_type': mtype})
-                    bracket.append({'team1': winners[1], 'team2': winners[2], 'match_label': label, 'match_type': mtype})
-            elif len(winners) == 2:
-                label = "Championship Final" if rounds_remaining == 0 else "Semifinal"
-                mtype = "championship_final" if rounds_remaining == 0 else "semifinal"
-                bracket.append({'team1': winners[0], 'team2': winners[1], 'match_label': label, 'match_type': mtype})
-            else:
-                for i in range(0, len(winners), 2):
-                    if i + 1 < len(winners):
-                        bracket.append({
-                            'team1': winners[i],
-                            'team2': winners[i+1],
-                            'match_label': 'Playoff Match',
-                            'match_type': 'playoff'
-                        })
-            
-            # Build consolation bracket from losers if league has consolation games
-            if has_consolation and len(losers) >= 2:
-                # Fetch full team data for losers from standings
-                loser_teams = []
+            # For future playoff weeks, instead of building a full speculative bracket,
+            # just look at what the user's team is currently projected to do in the PRECEDING week.
+            if my_team_key:
                 try:
-                    standings_data = api.get_league_standings(league_key)
-                    loser_map = {t['team_key']: t for t in standings_data}
-                    for lk in losers:
-                        if lk in loser_map:
-                            lt = loser_map[lk]
-                            loser_teams.append({'team_key': lk, 'name': lt.get('name', lk), 'rank': lt.get('rank', 99)})
-                        else:
-                            loser_teams.append({'team_key': lk, 'name': lk, 'rank': 99})
-                except Exception:
-                    loser_teams = [{'team_key': lk, 'name': lk, 'rank': 99} for lk in losers]
-                
-                loser_teams.sort(key=lambda x: x['rank'])
-                
-                # Consolation labels based on status
-                # If we have 2 losers in the final week, it's 3rd place!
-                # If we have 4 losers in the final week, it's 5th/7th place!
-                for i in range(0, len(loser_teams), 2):
-                    if i + 1 < len(loser_teams):
-                        # Simple rank-based labeling for consolation
-                        rank1 = loser_teams[i]['rank']
-                        rank2 = loser_teams[i+1]['rank']
+                    week_to_check = target_week - 1
+                    
+                    if week_to_check == playoff_start_week and current_week <= playoff_start_week:
+                        # Checking week 20 from regular season: look at week 19 (QF) simulated bracket
+                        check_sim = simulate_next_playoff_week(league_key, playoff_start_week, current_week)
+                        matches_to_check = check_sim.get('bracket', []) + check_sim.get('consolation_bracket', [])
+                    else:
+                        # Checking from inside playoffs: use actual predict_all_matchups for the preceding week
+                        matches_to_check = predictor.predict_all_matchups(league_key, week_to_check, current_week)
                         
-                        label = "Consolation"
-                        mtype = "consolation"
+                    found_my_match = False
+                    for match in matches_to_check:
+                        t1_key = match.get('team1', {}).get('key') or match.get('team1', {}).get('team_key')
+                        t2_key = match.get('team2', {}).get('key') or match.get('team2', {}).get('team_key')
                         
-                        if rounds_remaining == 0:
-                            if rank1 <= 4 and rank2 <= 4:
-                                label = "3rd Place Match"
-                                mtype = "main_3rd_place"
-                            elif rank1 <= 6 and rank2 <= 6:
-                                label = "5th Place Match"
-                                mtype = "consolation_5th_place"
+                        if my_team_key in [t1_key, t2_key]:
+                            found_my_match = True
+                            winner_key = match.get('winner_key')
+                            
+                            # If prediction didn't yield a winner, fallback to season win%
+                            if not winner_key:
+                                standings = api.get_league_standings(league_key)
+                                s_map = {t['team_key']: t for t in standings}
+                                m_pct = s_map.get(my_team_key, {}).get('win_pct', 0)
+                                opp_key = t1_key if t2_key == my_team_key else t2_key
+                                o_pct = s_map.get(opp_key, {}).get('win_pct', 0)
+                                if m_pct > o_pct:
+                                    winner_key = my_team_key
+                                elif o_pct > m_pct:
+                                    winner_key = opp_key
+                                else:
+                                    m_rk = s_map.get(my_team_key, {}).get('rank', 99)
+                                    o_rk = s_map.get(opp_key, {}).get('rank', 99)
+                                    winner_key = my_team_key if m_rk < o_rk else opp_key
+
+                            if winner_key == my_team_key:
+                                my_team_status = "advancing"
                             else:
-                                label = "7th Place Match"
-                                mtype = "consolation_7th_place"
-                        
-                        consolation_bracket.append({
-                            'team1': loser_teams[i],
-                            'team2': loser_teams[i + 1],
-                            'seed1': rank1,
-                            'seed2': rank2,
-                            'is_consolation': True,
-                            'match_label': label,
-                            'match_type': mtype
-                        })
+                                my_team_status = "consolation" if has_consolation else "eliminated"
+                            
+                            # If the match itself was already consolation, you can't advance to championship
+                            if match.get('is_consolation') or match.get('match_type') == 'consolation':
+                                my_team_status = "consolation"
+
+                            break
+                            
+                    if not found_my_match:
+                        # Team not in the preceding bracket at all
+                        my_team_status = "consolation" if has_consolation else "eliminated"
+
+                except Exception as e:
+                    debug_print(f"[Playoff Sim] Simplified future check failed: {e}")
+                    my_team_status = "eliminated"  # Safe fallback
+            else:
+                my_team_status = "eliminated"
+                
+            # For future weeks, we only return the team status, not a full inaccurate bracket
+            result = {
+                'bracket': [],
+                'consolation_bracket': [],
+                'has_consolation': has_consolation,
+                'eliminated': eliminated,
+                'my_team_status': my_team_status
+            }
+            _set_prediction_cached(cache_key, result)
+            return result
     except Exception as e:
         debug_print(f"[Playoff Sim] Error generating bracket: {e}")
         import traceback
