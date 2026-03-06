@@ -21,19 +21,35 @@ def debug_print(*args, **kwargs):
 _prediction_cache: Dict[str, Dict] = {}
 PREDICTION_CACHE_TTL = 3600  # 1 hour - predictions don't change much within same week
 
+
+def _prediction_user_prefix() -> str:
+    """Return the current user's GUID for cache key isolation."""
+    try:
+        from flask import session
+        return session.get('user_guid', '')
+    except RuntimeError:
+        return ''
+
+
 def _get_prediction_cached(key: str) -> Optional[Any]:
-    """Get cached prediction if not expired."""
-    if key in _prediction_cache:
-        cached = _prediction_cache[key]
+    """Get cached prediction if not expired. Auto-prefixed by user GUID."""
+    prefix = _prediction_user_prefix()
+    full_key = f"{prefix}:{key}" if prefix else key
+
+    if full_key in _prediction_cache:
+        cached = _prediction_cache[full_key]
         if datetime.now() < cached['expires']:
             return cached['data']
         else:
-            del _prediction_cache[key]
+            del _prediction_cache[full_key]
     return None
 
+
 def _set_prediction_cached(key: str, data: Any):
-    """Store prediction in cache with TTL."""
-    _prediction_cache[key] = {
+    """Store prediction in cache with TTL. Auto-prefixed by user GUID."""
+    prefix = _prediction_user_prefix()
+    full_key = f"{prefix}:{key}" if prefix else key
+    _prediction_cache[full_key] = {
         'data': data,
         'expires': datetime.now() + timedelta(seconds=PREDICTION_CACHE_TTL)
     }
