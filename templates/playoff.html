@@ -149,7 +149,8 @@
     <p class="playoff-message">{{ message }}</p>
 
     {% if simulation %}
-    <!-- My team status - shown regardless of bracket availability -->
+    <!-- My team status - only shown for the immediately next playoff week -->
+    {% if simulation and selected_week == current_week + 1 %}
     {% if simulation.my_team_status == 'eliminated' %}
     <div
         style="background: rgba(255, 60, 60, 0.1); border: 1px solid #ff6b6b; padding: 1rem; border-radius: 12px; margin-bottom: 2rem; max-width: 500px;">
@@ -171,6 +172,7 @@
         <p style="margin: 0.5rem 0 0 0; color: var(--text-secondary);">Your team is projected to make it to this round.
         </p>
     </div>
+    {% endif %}
     {% endif %}
 
     {% if simulation.bracket %}
