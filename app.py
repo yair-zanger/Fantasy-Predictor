@@ -1067,36 +1067,7 @@ def clear_cache_route():
         return redirect(url_for('dashboard'))
     except Exception as e:
         return render_template('error.html', error=str(e))
-    count_acq = clear_cache_by_pattern('acquisition_dates:')
-    count_il = clear_cache_by_pattern('il_history:')
-    
-    total = count_roster + count_matchup + count_trans + count_raw_trans + count_acq + count_il
-    
-    # Also wipe all prediction caches so they recalculate with the new rosters
-    try:
-        predictor.clear_cache()
-    except Exception as e:
-        debug_print(f"[Cache] Error wiping predictor cache: {e}")
-        
-    # Re-trigger background pre-warm to refill the caches immediately
-    try:
-        if auth.is_authenticated():
-            leagues = api.get_user_leagues()
-            import threading
-            threading.Thread(target=_warm_league_caches, args=(leagues,), daemon=True).start()
-    except Exception as e:
-        debug_print(f"[Cache] Error re-triggering pre-warm: {e}")
-    
-    return jsonify({
-        'success': True,
-        'message': f'Cache cleared! Refreshed {total} entries. Predictions are recalculating.',
-        'details': {
-            'roster': count_roster,
-            'transactions': count_trans,
-            'acquisition_dates': count_acq,
-            'il_history': count_il
-        }
-    })
+
 
 
 if __name__ == '__main__':
