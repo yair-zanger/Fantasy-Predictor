@@ -18,7 +18,7 @@ _raw_client_id = os.getenv('YAHOO_CLIENT_ID', 'dj0yJmk9UEYyWGVWQnowaEVWJmQ9WVdrO
 YAHOO_CLIENT_ID = _raw_client_id.strip().split('\n')[0].strip()
 
 # For Public Clients, this MUST be empty. If it contains labels or "NONE", we clear it.
-_raw_secret = os.getenv('YAHOO_CLIENT_SECRET', '').strip()
+_raw_secret = os.getenv('YAHOO_CLIENT_SECRET', '5195b0acdf1f9978442f829abc5fab0161bef921').strip()
 if _raw_secret.upper() in ['NONE', '', 'CLIENT SECRET', 'CONSUMER SECRET'] or 'CONSUMER' in _raw_secret.upper():
     YAHOO_CLIENT_SECRET = ''
 else:
