@@ -541,6 +541,29 @@
     <!-- Global Side Menu -->
     <div class="side-menu" id="sideMenu">
         <div class="side-menu-title">📋 Navigation</div>
+
+        {% if subscription and not subscription.is_paid and not subscription.has_promo %}
+        <div
+            style="padding: 1rem; background: rgba(255, 107, 53, 0.1); border-radius: 12px; margin-bottom: 1.5rem; border: 1px solid rgba(255, 107, 53, 0.3);">
+            <div
+                style="font-size: 0.75rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.25rem;">
+                Free Trial</div>
+            <div style="font-size: 1.1rem; font-weight: 700; color: var(--accent-orange);">{{ subscription.days_left }}
+                Days Left</div>
+            <a href="/paywall"
+                style="display: block; margin-top: 0.5rem; font-size: 0.8rem; color: var(--accent-blue); text-decoration: none; font-weight: 600;">Upgrade
+                to Premium →</a>
+        </div>
+        {% elif subscription and (subscription.is_paid or subscription.has_promo) %}
+        <div
+            style="padding: 1rem; background: rgba(16, 185, 129, 0.1); border-radius: 12px; margin-bottom: 1.5rem; border: 1px solid rgba(16, 185, 129, 0.3);">
+            <div
+                style="font-size: 0.75rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.25rem;">
+                Subscription</div>
+            <div style="font-size: 1.1rem; font-weight: 700; color: var(--accent-green);">Premium Member</div>
+        </div>
+        {% endif %}
+
         <a href="{{ url_for('dashboard') }}"
             class="side-nav-link {% if request.endpoint == 'dashboard' %}active{% endif %}">
             🏀 All Leagues
@@ -550,14 +573,24 @@
             class="side-nav-link {% if request.endpoint == 'predict' %}active{% endif %}">
             🎯 My Matchup
         </a>
-        <a href="{{ url_for('predict_all', league_key=league_key) }}"
-            class="side-nav-link {% if request.endpoint == 'predict_all' %}active{% endif %}">
-            📊 All Matchups
-        </a>
         <a href="{{ url_for('standings', league_key=league_key) }}"
             class="side-nav-link {% if request.endpoint == 'standings' %}active{% endif %}">
             🏆 League Standings
         </a>
+        {% endif %}
+
+        {% if is_admin %}
+        <div style="margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--border-color);">
+            <a href="{{ url_for('admin_page') }}"
+                class="side-nav-link {% if request.endpoint == 'admin_page' %}active{% endif %}"
+                style="background: rgba(245, 158, 11, 0.1); border-color: rgba(245, 158, 11, 0.2); color: #f59e0b;">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                </svg>
+                Admin Panel
+            </a>
+        </div>
         {% endif %}
     </div>
 
