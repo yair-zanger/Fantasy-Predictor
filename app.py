@@ -23,6 +23,12 @@ from predictor import predictor, PlayoffWeekError
 from config import CATEGORIES, DEBUG_MODE, IS_VERCEL, ADMIN_EMAILS, ADMIN_NICKNAMES, STRIPE_SECRET_KEY, STRIPE_PUBLISHABLE_KEY, STRIPE_WEBHOOK_SECRET, STRIPE_PRICE_ID
 import database as db
 
+# Initialize database tables
+try:
+    db.init_db()
+except Exception as e:
+    print(f"[Database] Initialization error: {e}")
+
 def debug_print(*args, **kwargs):
     """Print only if DEBUG_MODE is enabled."""
     if DEBUG_MODE:
@@ -316,15 +322,59 @@ def admin_page():
         from yahoo_api import _api_cache
         guid = api.get_user_guid()
         
+        # Fetch stats from DB
+        users = db.get_all_users()
+        promo_codes = db.get_all_promo_codes()
+        trial_days = db.get_trial_days()
+        
         stats = {
             'total_cached_keys': len(_api_cache),
             'user_guid': guid,
             'token_expiry': auth.token_expiry,
-            'admin_emails': ADMIN_EMAILS
+            'admin_emails': ADMIN_EMAILS,
+            'users_count': len(users),
+            'active_promo_count': len([p for p in promo_codes if p['is_active']]),
+            'trial_days': trial_days
         }
-        return render_template('admin.html', stats=stats)
+        
+        return render_template('admin.html', 
+                             stats=stats, 
+                             users=users, 
+                             promo_codes=promo_codes)
     except Exception as e:
+        debug_print(f"[Admin] Error loading page: {e}")
         return render_template('error.html', error=str(e))
+
+
+@app.route('/admin/settings', methods=['POST'])
+@admin_required
+def admin_update_settings():
+    """Update global application settings."""
+    trial_days = request.form.get('trial_days')
+    if trial_days:
+        try:
+            db.set_setting('trial_days', str(int(trial_days)))
+        except (ValueError, TypeError):
+            pass
+    return redirect(url_for('admin_page'))
+
+
+@app.route('/admin/promo/create', methods=['POST'])
+@admin_required
+def admin_create_promo():
+    """Generate a new promo code."""
+    code = request.form.get('code', '').strip().upper()
+    if code:
+        db.create_promo_code(code)
+    return redirect(url_for('admin_page'))
+
+
+@app.route('/admin/promo/deactivate/<code>')
+@admin_required
+def admin_deactivate_promo(code):
+    """Disable a promo code."""
+    db.deactivate_promo_code(code)
+    return redirect(url_for('admin_page'))
 
 
 @app.route('/login')
@@ -485,6 +535,7 @@ def stripe_webhook():
 # ─── Protected Routes ─────────────────────────────────────────────────────────
 
 @app.route('/dashboard')
+@login_required
 @subscription_required
 def dashboard():
     """Main dashboard - league selection"""
@@ -511,6 +562,7 @@ def dashboard():
 
 
 @app.route('/league/<league_key>')
+@login_required
 @subscription_required
 def league_view(league_key):
     """View league details and prediction"""
@@ -531,6 +583,7 @@ def league_view(league_key):
 
 
 @app.route('/predict/<league_key>')
+@login_required
 @subscription_required
 def predict(league_key):
     """Generate and show prediction"""
@@ -590,6 +643,7 @@ def predict(league_key):
 
 
 @app.route('/standings/<league_key>')
+@login_required
 @subscription_required
 def standings(league_key):
     """Show league standings with week navigation"""
