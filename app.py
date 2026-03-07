@@ -14,12 +14,14 @@ import os
 import json
 import threading
 import time
+from datetime import timedelta
 
 from functools import wraps
 from yahoo_auth import auth
 from yahoo_api import api
 from predictor import predictor, PlayoffWeekError
-from config import CATEGORIES, DEBUG_MODE, IS_VERCEL, ADMIN_EMAILS
+from config import CATEGORIES, DEBUG_MODE, IS_VERCEL, ADMIN_EMAILS, ADMIN_NICKNAMES, STRIPE_SECRET_KEY, STRIPE_PUBLISHABLE_KEY, STRIPE_WEBHOOK_SECRET, STRIPE_PRICE_ID
+import database as db
 
 def debug_print(*args, **kwargs):
     """Print only if DEBUG_MODE is enabled."""
@@ -163,6 +165,23 @@ def login_required(f):
     return decorated_function
 
 
+def subscription_required(f):
+    """Require user to have an active trial, paid subscription, or promo code."""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not auth.is_authenticated():
+            return redirect(url_for('login'))
+        try:
+            guid = api.get_user_guid()
+            if guid and not db.has_access(guid):
+                return redirect(url_for('paywall'))
+        except Exception as e:
+            debug_print(f"[Subscription] Access check failed: {e}")
+            # On DB error, allow access to avoid locking users out
+        return f(*args, **kwargs)
+    return decorated_function
+
+
 def admin_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
@@ -178,7 +197,7 @@ def admin_required(f):
         # For now, let's use the provided emails as a placeholder or check against nicknames
         # if nicknames are known to the user.
         # Actually, let's stick to the plan of checking something unique.
-        if user_name not in ['Yair abdul gerald']: # Example nickname based on previous context
+        if user_name not in ADMIN_NICKNAMES:
             return redirect(url_for('dashboard'))
             
         return f(*args, **kwargs)
@@ -198,8 +217,9 @@ def validate_league_access(league_key):
 
 app = Flask(__name__)
 # Use a stable secret key so sessions survive across serverless cold starts.
-# Set FLASK_SECRET_KEY env var in Vercel dashboard.
-app.secret_key = os.getenv('FLASK_SECRET_KEY', os.urandom(24))
+# Set FLASK_SECRET_KEY env var in Vercel dashboard. Local dev uses a static fallback.
+app.secret_key = os.getenv('FLASK_SECRET_KEY', 'fantasy_basketball_predictor_dev_secret_123')
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=365)
 
 
 # Make auth available in all templates
@@ -210,14 +230,37 @@ def inject_auth():
         try:
             name = api.get_logged_in_user_name()
             context['current_user_name'] = name
-            context['is_admin'] = name in ['Yair abdul gerald'] # Example admin check
+            context['is_admin'] = name in ADMIN_NICKNAMES
         except Exception as e:
             debug_print(f"Error getting username for context: {e}")
             context['current_user_name'] = ""
             context['is_admin'] = False
+        # Inject subscription info into every template
+        try:
+            guid = api.get_user_guid()
+            if guid:
+                user = db.get_or_create_user(guid)
+                trial_days = db.get_trial_days()
+                from datetime import datetime, timezone
+                trial_start = user.get('trial_start')
+                if trial_start and trial_start.tzinfo is None:
+                    trial_start = trial_start.replace(tzinfo=timezone.utc)
+                days_used = (datetime.now(timezone.utc) - trial_start).days if trial_start else 0
+                days_left = max(0, trial_days - days_used)
+                context['subscription'] = {
+                    'is_paid': user.get('is_paid', False),
+                    'has_promo': bool(user.get('promo_code_used')),
+                    'trial_active': db.is_trial_active(user),
+                    'days_left': days_left,
+                    'trial_days': trial_days,
+                }
+        except Exception as e:
+            debug_print(f"[Subscription] Context error: {e}")
+            context['subscription'] = {'is_paid': False, 'trial_active': True, 'days_left': 0}
     else:
         context['current_user_name'] = ""
         context['is_admin'] = False
+        context['subscription'] = {}
     return context
 
 @app.route('/')
@@ -330,8 +373,119 @@ def auth_callback():
     return redirect(url_for('login'))
 
 
-@app.route('/dashboard')
+# ─── Subscription / Paywall Routes ──────────────────────────────────────────
+
+@app.route('/paywall')
 @login_required
+def paywall():
+    """Paywall page — shown when the user's trial has expired."""
+    flash_msg = request.args.get('msg', '')
+    flash_success = request.args.get('ok', '0') == '1'
+    # If user already has access, send them to dashboard
+    try:
+        guid = api.get_user_guid()
+        if guid and db.has_access(guid):
+            return redirect(url_for('dashboard'))
+    except Exception:
+        pass
+    stripe_enabled = bool(STRIPE_SECRET_KEY and STRIPE_PRICE_ID)
+    return render_template('paywall.html',
+                           flash_msg=flash_msg,
+                           flash_success=flash_success,
+                           stripe_enabled=stripe_enabled)
+
+
+@app.route('/redeem-promo', methods=['POST'])
+@login_required
+def redeem_promo():
+    """Handle promo code redemption."""
+    code = request.form.get('code', '').strip()
+    if not code:
+        return redirect(url_for('paywall', msg='נא להכניס קוד הטבה', ok='0'))
+    try:
+        guid = api.get_user_guid()
+        success, message = db.redeem_promo_code(code, guid)
+        if success:
+            return redirect(url_for('dashboard'))
+        return redirect(url_for('paywall', msg=message, ok='0'))
+    except Exception as e:
+        return redirect(url_for('paywall', msg=str(e), ok='0'))
+
+
+@app.route('/create-checkout-session')
+@login_required
+def create_checkout_session():
+    """Create a Stripe Checkout session and redirect the user."""
+    if not STRIPE_SECRET_KEY:
+        return redirect(url_for('paywall', msg='מערכת התשלומים לא מוגדרת', ok='0'))
+    try:
+        import stripe
+        stripe.api_key = STRIPE_SECRET_KEY
+        guid = api.get_user_guid()
+        user = db.get_or_create_user(guid)
+        checkout_session = stripe.checkout.Session.create(
+            payment_method_types=['card'],
+            line_items=[{'price': STRIPE_PRICE_ID, 'quantity': 1}],
+            mode='payment',
+            success_url=request.host_url + 'stripe-success?session_id={CHECKOUT_SESSION_ID}',
+            cancel_url=request.host_url + 'paywall',
+            metadata={'guid': guid},
+            customer_email=user.get('stripe_customer_id') or None,
+        )
+        return redirect(checkout_session.url)
+    except Exception as e:
+        debug_print(f"[Stripe] Checkout error: {e}")
+        return redirect(url_for('paywall', msg='שגיאה בהפניה לתשלום', ok='0'))
+
+
+@app.route('/stripe-success')
+@login_required
+def stripe_success():
+    """Stripe redirect after successful payment (not a webhook — just show success)."""
+    try:
+        import stripe
+        stripe.api_key = STRIPE_SECRET_KEY
+        session_id = request.args.get('session_id')
+        if session_id:
+            checkout = stripe.checkout.Session.retrieve(session_id)
+            if checkout.payment_status == 'paid':
+                guid = checkout.metadata.get('guid') or api.get_user_guid()
+                db.set_user_paid(guid, checkout.customer)
+    except Exception as e:
+        debug_print(f"[Stripe] Success page error: {e}")
+    return redirect(url_for('dashboard'))
+
+
+@app.route('/stripe-webhook', methods=['POST'])
+def stripe_webhook():
+    """Stripe webhook — marks user as paid when payment is confirmed."""
+    if not STRIPE_WEBHOOK_SECRET:
+        return 'Webhook not configured', 400
+    try:
+        import stripe
+        stripe.api_key = STRIPE_SECRET_KEY
+        payload = request.get_data()
+        sig = request.headers.get('Stripe-Signature', '')
+        event = stripe.Webhook.construct_event(payload, sig, STRIPE_WEBHOOK_SECRET)
+    except Exception as e:
+        debug_print(f"[Stripe Webhook] Error: {e}")
+        return str(e), 400
+
+    if event['type'] == 'checkout.session.completed':
+        session_obj = event['data']['object']
+        if session_obj.get('payment_status') == 'paid':
+            guid = session_obj.get('metadata', {}).get('guid')
+            if guid:
+                db.set_user_paid(guid, session_obj.get('customer'))
+                debug_print(f"[Stripe Webhook] User {guid} marked as paid")
+
+    return jsonify({'ok': True})
+
+
+# ─── Protected Routes ─────────────────────────────────────────────────────────
+
+@app.route('/dashboard')
+@subscription_required
 def dashboard():
     """Main dashboard - league selection"""
     try:
@@ -357,7 +511,7 @@ def dashboard():
 
 
 @app.route('/league/<league_key>')
-@login_required
+@subscription_required
 def league_view(league_key):
     """View league details and prediction"""
     validate_league_access(league_key)
@@ -377,7 +531,7 @@ def league_view(league_key):
 
 
 @app.route('/predict/<league_key>')
-@login_required
+@subscription_required
 def predict(league_key):
     """Generate and show prediction"""
     validate_league_access(league_key)
@@ -436,7 +590,7 @@ def predict(league_key):
 
 
 @app.route('/standings/<league_key>')
-@login_required
+@subscription_required
 def standings(league_key):
     """Show league standings with week navigation"""
     validate_league_access(league_key)
@@ -841,7 +995,7 @@ def simulate_next_playoff_week(league_key: str, target_week: int, current_week: 
 
 
 @app.route('/predict/<league_key>/all')
-@login_required
+@subscription_required
 def predict_all(league_key):
     """Show predictions for all matchups in the league"""
     validate_league_access(league_key)
@@ -997,6 +1151,62 @@ def debug_page():
         return f"<html><body style='background:#1a1a2e;color:red;padding:20px;'><h1>Error</h1><pre>{traceback.format_exc()}</pre></body></html>"
 
 
+@app.route('/admin')
+@admin_required
+def admin_page():
+    """Admin dashboard - manage subscriptions, trials, and promo codes."""
+    try:
+        # Get system stats
+        stats = {
+            'total_cached_keys': 0, # Placeholder or real cache count
+            'user_guid': api.get_user_guid(),
+            'token_expiry': auth.token_expiry.strftime('%Y-%m-%d %H:%M:%S') if auth.token_expiry else None,
+            'admin_emails': ADMIN_EMAILS,
+            'trial_days': db.get_trial_days(),
+            'users_count': len(db.get_all_users()),
+            'active_promo_count': sum(1 for p in db.get_all_promo_codes() if p['is_active'])
+        }
+        
+        users = db.get_all_users()
+        promo_codes = db.get_all_promo_codes()
+        
+        return render_template('admin.html', stats=stats, users=users, promo_codes=promo_codes)
+    except Exception as e:
+        import traceback
+        return f"<html><body style='background:#1a1a2e;color:red;padding:20px;'><h1>Admin Error</h1><pre>{traceback.format_exc()}</pre></body></html>"
+
+
+@app.route('/admin/settings', methods=['POST'])
+@admin_required
+def admin_save_settings():
+    """Save admin settings (like trial duration)."""
+    trial_days = request.form.get('trial_days')
+    if trial_days:
+        try:
+            db.set_setting('trial_days', str(int(trial_days)))
+        except ValueError:
+            pass
+    return redirect(url_for('admin_page'))
+
+
+@app.route('/admin/promo/create', methods=['POST'])
+@admin_required
+def admin_create_promo():
+    """Generate a new promo code."""
+    code = request.form.get('code', '').strip().upper()
+    if code:
+        db.create_promo_code(code)
+    return redirect(url_for('admin_page'))
+
+
+@app.route('/admin/promo/deactivate/<code_val>')
+@admin_required
+def admin_deactivate_promo(code_val):
+    """Deactivate a promo code."""
+    db.deactivate_promo_code(code_val)
+    return redirect(url_for('admin_page'))
+
+
 @app.route('/logout')
 def logout():
     """Logout user"""
@@ -1082,6 +1292,15 @@ if __name__ == '__main__':
     # Pre-load external data BEFORE starting server
     print("⏳ Pre-loading data... (this takes ~10-30 seconds on first run)")
     _preload_data()
+    
+    # Initialize Database
+    print("🗄️ Initializing Database...")
+    try:
+        db.init_db()
+        print("✅ Database initialized!")
+    except Exception as e:
+        print(f"❌ Database error: {e}")
+        
     print("✅ Data pre-loaded! Server is ready.\n")
     
     # Keep cache hot 24/7: refresh BBRef + NBA schedule every 30 min (local only)

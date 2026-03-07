@@ -47,3 +47,11 @@ GAME_CODE = 'nba'
 
 # Admin users (by Yahoo email) — have access to /admin panel
 ADMIN_EMAILS = ['yairzanger@gmail.com', 'yoelzanger@gmail.com']
+ADMIN_NICKNAMES = ['Yair abdul gerald', 'Yoel']
+
+# ─── Stripe (set these in Vercel Environment Variables) ───────────────────────
+STRIPE_SECRET_KEY = os.getenv('STRIPE_SECRET_KEY', '')
+STRIPE_PUBLISHABLE_KEY = os.getenv('STRIPE_PUBLISHABLE_KEY', '')
+STRIPE_WEBHOOK_SECRET = os.getenv('STRIPE_WEBHOOK_SECRET', '')
+STRIPE_PRICE_ID = os.getenv('STRIPE_PRICE_ID', '')  # Your Stripe Price ID
+

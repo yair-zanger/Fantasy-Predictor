@@ -1,0 +1,297 @@
+{% extends 'base.html' %}
+
+{% block title %}גישה לפרימיום | Fantasy Predictor{% endblock %}
+
+{% block extra_styles %}
+<style>
+    .paywall-hero {
+        min-height: calc(100vh - 64px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 2rem;
+        position: relative;
+    }
+
+    .paywall-hero::before {
+        content: '';
+        position: absolute;
+        top: -50%;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 600px;
+        height: 600px;
+        background: radial-gradient(ellipse, rgba(255, 107, 53, 0.12) 0%, transparent 70%);
+        pointer-events: none;
+    }
+
+    .paywall-box {
+        background: var(--bg-card);
+        border: 1px solid var(--border-color);
+        border-radius: 24px;
+        padding: 3rem 2.5rem;
+        max-width: 520px;
+        width: 100%;
+        text-align: center;
+        position: relative;
+        overflow: hidden;
+        box-shadow: 0 30px 80px rgba(0, 0, 0, 0.4);
+        animation: fadeIn 0.5s ease-out forwards;
+    }
+
+    .paywall-box::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 4px;
+        background: linear-gradient(90deg, var(--accent-orange), var(--accent-blue));
+    }
+
+    .paywall-icon {
+        font-size: 3.5rem;
+        margin-bottom: 1rem;
+        display: block;
+        filter: drop-shadow(0 4px 12px rgba(255, 107, 53, 0.3));
+    }
+
+    .paywall-title {
+        font-size: 1.8rem;
+        font-weight: 800;
+        background: linear-gradient(135deg, var(--text-primary), var(--accent-orange));
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        margin-bottom: 0.75rem;
+    }
+
+    .paywall-subtitle {
+        font-size: 1rem;
+        color: var(--text-secondary);
+        margin-bottom: 2rem;
+        line-height: 1.6;
+    }
+
+    .trial-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        background: rgba(239, 68, 68, 0.15);
+        border: 1px solid rgba(239, 68, 68, 0.4);
+        color: #ef4444;
+        padding: 0.5rem 1.25rem;
+        border-radius: 40px;
+        font-size: 0.9rem;
+        font-weight: 600;
+        margin-bottom: 2rem;
+    }
+
+    .action-section {
+        margin-top: 1.5rem;
+    }
+
+    .stripe-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.75rem;
+        width: 100%;
+        padding: 1rem 1.5rem;
+        background: linear-gradient(135deg, var(--accent-orange), #ff8f35);
+        color: white;
+        border: none;
+        border-radius: 12px;
+        font-size: 1.1rem;
+        font-weight: 700;
+        cursor: pointer;
+        text-decoration: none;
+        transition: all 0.3s;
+        margin-bottom: 1.5rem;
+    }
+
+    .stripe-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 28px rgba(255, 107, 53, 0.5);
+        color: white;
+    }
+
+    .stripe-btn svg {
+        flex-shrink: 0;
+    }
+
+    .divider {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        color: var(--text-muted);
+        font-size: 0.85rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .divider::before,
+    .divider::after {
+        content: '';
+        flex: 1;
+        border-top: 1px solid var(--border-color);
+    }
+
+    .promo-form {
+        display: flex;
+        gap: 0.75rem;
+    }
+
+    .promo-input {
+        flex: 1;
+        padding: 0.85rem 1.1rem;
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: 10px;
+        color: var(--text-primary);
+        font-family: inherit;
+        font-size: 0.9rem;
+        letter-spacing: 0.08em;
+        transition: border-color 0.2s;
+        text-transform: uppercase;
+    }
+
+    .promo-input::placeholder {
+        letter-spacing: 0;
+        text-transform: none;
+    }
+
+    .promo-input:focus {
+        outline: none;
+        border-color: var(--accent-blue);
+    }
+
+    .promo-btn {
+        padding: 0.85rem 1.25rem;
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: 10px;
+        color: var(--text-primary);
+        font-family: inherit;
+        font-size: 0.9rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+        white-space: nowrap;
+    }
+
+    .promo-btn:hover {
+        background: var(--accent-blue);
+        border-color: var(--accent-blue);
+        color: white;
+    }
+
+    .flash-message {
+        margin-top: 1rem;
+        padding: 0.75rem 1rem;
+        border-radius: 10px;
+        font-size: 0.9rem;
+        font-weight: 500;
+    }
+
+    .flash-success {
+        background: rgba(16, 185, 129, 0.15);
+        border: 1px solid rgba(16, 185, 129, 0.4);
+        color: #10b981;
+    }
+
+    .flash-error {
+        background: rgba(239, 68, 68, 0.15);
+        border: 1px solid rgba(239, 68, 68, 0.4);
+        color: #ef4444;
+    }
+
+    .features-list {
+        text-align: left;
+        margin: 1.5rem 0;
+        list-style: none;
+    }
+
+    .features-list li {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.5rem 0;
+        color: var(--text-secondary);
+        font-size: 0.9rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    }
+
+    .features-list li:last-child {
+        border-bottom: none;
+    }
+
+    .features-list li span {
+        color: var(--accent-green);
+        font-size: 1rem;
+    }
+
+    @media (max-width: 600px) {
+        .paywall-box {
+            padding: 2rem 1.25rem;
+        }
+
+        .promo-form {
+            flex-direction: column;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="paywall-hero">
+    <div class="paywall-box">
+        <span class="paywall-icon">🔒</span>
+        <h1 class="paywall-title">תקופת הניסיון הסתיימה</h1>
+        <p class="paywall-subtitle">
+            שבוע ניסיון בחינם שלך הסתיים.<br>
+            שדרג לגישה מלאה כדי להמשיך לנהל את הליגה שלך.
+        </p>
+
+        <div class="trial-badge">
+            ⏰ תקופת הניסיון הסתיימה
+        </div>
+
+        <ul class="features-list">
+            <li><span>✅</span> ניבוי מרירת נקודות לכל שבוע</li>
+            <li><span>✅</span> ניתוח כל המשחקים בליגה</li>
+            <li><span>✅</span> דירוג בסוף עונה & פלייאוף</li>
+            <li><span>✅</span> נתוני NBA עדכניים בזמן אמת</li>
+        </ul>
+
+        <div class="action-section">
+            {% if stripe_enabled %}
+            <a href="/create-checkout-session" class="stripe-btn" id="checkoutBtn">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="1" y="4" width="22" height="16" rx="2" ry="2" />
+                    <line x1="1" y1="10" x2="23" y2="10" />
+                </svg>
+                שלם עם Stripe
+            </a>
+            {% else %}
+            <div class="flash-message flash-error" style="margin-bottom: 1.5rem;">
+                מערכת התשלומים עדיין בהגדרה — נסה קוד הטבה.
+            </div>
+            {% endif %}
+
+            <div class="divider">או</div>
+
+            <form class="promo-form" action="/redeem-promo" method="POST">
+                <input type="text" name="code" class="promo-input" id="promoInput" placeholder="הכנס קוד הטבה..."
+                    maxlength="32" autocomplete="off" required>
+                <button type="submit" class="promo-btn">אשר</button>
+            </form>
+
+            {% if flash_msg %}
+            <div class="flash-message {{ 'flash-success' if flash_success else 'flash-error' }}">
+                {{ flash_msg }}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

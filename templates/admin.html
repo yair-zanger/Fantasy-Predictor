@@ -88,22 +88,128 @@
 
 <div class="admin-grid">
     <div class="stat-card">
-        <div class="stat-label">Total Cached Keys (Global)</div>
-        <div class="stat-value">{{ stats.total_cached_keys }}</div>
+        <div class="stat-label">Total Users</div>
+        <div class="stat-value">{{ stats.users_count }}</div>
     </div>
     <div class="stat-card">
-        <div class="stat-label">Current User GUID</div>
-        <div class="stat-value" style="font-size: 1rem; word-break: break-all;">{{ stats.user_guid }}</div>
+        <div class="stat-label">Active Promo Codes</div>
+        <div class="stat-value">{{ stats.active_promo_count }}</div>
     </div>
     <div class="stat-card">
-        <div class="stat-label">Token Access Expiry</div>
-        <div class="stat-value" style="font-size: 1rem;">
-            {% if stats.token_expiry %}
-            {{ stats.token_expiry }}
-            {% else %}
-            <span style="color: var(--accent-red);">No Token</span>
-            {% endif %}
-        </div>
+        <div class="stat-label">Trial Duration (Days)</div>
+        <div class="stat-value">{{ stats.trial_days }}</div>
+    </div>
+</div>
+
+<div class="admin-grid">
+    <div class="stat-card">
+        <h3 class="stat-label">Set Trial Duration</h3>
+        <form action="/admin/settings" method="POST" style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+            <select name="trial_days" class="promo-input" style="flex: 1; min-width: 0; padding: 0.5rem;">
+                <option value="7" {% if stats.trial_days==7 %}selected{% endif %}>7 Days</option>
+                <option value="14" {% if stats.trial_days==14 %}selected{% endif %}>14 Days</option>
+                <option value="30" {% if stats.trial_days==30 %}selected{% endif %}>30 Days</option>
+            </select>
+            <button type="submit" class="btn btn-primary" style="padding: 0.5rem 1rem;">Update</button>
+        </form>
+    </div>
+
+    <div class="stat-card">
+        <h3 class="stat-label">Create Promo Code</h3>
+        <form action="/admin/promo/create" method="POST" style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+            <input type="text" name="code" placeholder="CODE2024" class="promo-input"
+                style="flex: 1; min-width: 0; padding: 0.5rem; border-radius: 8px; background: var(--bg-secondary); border: 1px solid var(--border-color); color: white;">
+            <button type="submit" class="btn btn-primary" style="padding: 0.5rem 1rem;">Create</button>
+        </form>
+    </div>
+</div>
+
+<div class="admin-section">
+    <h2 class="section-title">Promo Codes</h2>
+    <div class="card" style="padding: 0; overflow-x: auto;">
+        <table style="width: 100%; border-collapse: collapse; text-align: left;">
+            <thead>
+                <tr style="border-bottom: 1px solid var(--border-color); background: rgba(255,255,255,0.02);">
+                    <th style="padding: 1rem;">Code</th>
+                    <th style="padding: 1rem;">Status</th>
+                    <th style="padding: 1rem;">Used By (GUID)</th>
+                    <th style="padding: 1rem;">Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for promo in promo_codes %}
+                <tr style="border-bottom: 1px solid var(--border-color);">
+                    <td style="padding: 1rem; font-family: monospace;">{{ promo.code }}</td>
+                    <td style="padding: 1rem;">
+                        <span class="badge {{ 'badge-admin' if promo.is_active else '' }}"
+                            style="background: {{ 'rgba(16, 185, 129, 0.15)' if promo.is_active else 'rgba(239, 68, 68, 0.15)' }}; color: {{ '#10b981' if promo.is_active else '#ef4444' }};">
+                            {{ 'Active' if promo.is_active else 'Used' }}
+                        </span>
+                    </td>
+                    <td style="padding: 1rem; font-size: 0.8rem; opacity: 0.7;">{{ promo.used_by_guid or '-' }}</td>
+                    <td style="padding: 1rem;">
+                        {% if promo.is_active %}
+                        <a href="/admin/promo/deactivate/{{ promo.code }}"
+                            style="color: var(--accent-red); font-size: 0.8rem;">Deactivate</a>
+                        {% else %}
+                        -
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="admin-section">
+    <h2 class="section-title">Application Users</h2>
+    <div class="card" style="padding: 0; overflow-x: auto;">
+        <table style="width: 100%; border-collapse: collapse; text-align: left;">
+            <thead>
+                <tr style="border-bottom: 1px solid var(--border-color); background: rgba(255,255,255,0.02);">
+                    <th style="padding: 1rem;">GUID</th>
+                    <th style="padding: 1rem;">Status</th>
+                    <th style="padding: 1rem;">Type</th>
+                    <th style="padding: 1rem;">Subscription Info</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for user in users %}
+                <tr style="border-bottom: 1px solid var(--border-color);">
+                    <td style="padding: 1rem; font-size: 0.8rem; font-family: monospace;">{{ user.guid }}</td>
+                    <td style="padding: 1rem;">
+                        {% if user.is_paid %}
+                        <span class="badge" style="background: rgba(16, 185, 129, 0.15); color: #10b981;">Paid
+                            Member</span>
+                        {% elif user.promo_code_used %}
+                        <span class="badge" style="background: rgba(59, 130, 246, 0.15); color: #3b82f6;">Promo
+                            Access</span>
+                        {% else %}
+                        <span class="badge" style="background: rgba(245, 158, 11, 0.15); color: #f59e0b;">Free
+                            Trial</span>
+                        {% endif %}
+                    </td>
+                    <td style="padding: 1rem; font-size: 0.9rem;">
+                        {% if user.is_paid %}
+                        Stripe ({{ user.stripe_customer_id or 'No ID' }})
+                        {% elif user.promo_code_used %}
+                        Code: {{ user.promo_code_used }}
+                        {% else %}
+                        Trial Started: {{ user.trial_start.strftime('%Y-%m-%d') }}
+                        {% endif %}
+                    </td>
+                    <td style="padding: 1rem;">
+                        {% if not user.is_paid and not user.promo_code_used %}
+                        <span style="font-size: 0.85rem; color: var(--text-muted);">
+                            User since: {{ user.created_at.strftime('%Y-%m-%d') }}
+                        </span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
     </div>
 </div>
 
@@ -124,6 +230,7 @@
         </ul>
     </div>
 </div>
+
 
 <div class="admin-section">
     <h2 class="section-title">System Actions</h2>

@@ -102,6 +102,7 @@ class YahooAuth:
         # Save code_verifier to session so it survives across serverless invocations
         try:
             from flask import session
+            session.permanent = True
             session['pkce_code_verifier'] = self.code_verifier
             session.modified = True
         except RuntimeError:
@@ -324,6 +325,7 @@ class YahooAuth:
         # Always try Flask session first (works in both environments)
         try:
             from flask import session
+            session.permanent = True
             session['yahoo_token'] = token_data
             session.modified = True
         except RuntimeError:
