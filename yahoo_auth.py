@@ -225,8 +225,12 @@ class YahooAuth:
             try:
                 from flask import session
                 self.code_verifier = session.get('pkce_code_verifier')
+                print(f"[Auth] Restored code_verifier from session: {self.code_verifier is not None}")
             except RuntimeError:
+                print("[Auth] No Flask request context to restore code_verifier")
                 pass
+        
+        print(f"[Auth] Exchanging code for token. Has Secret: {bool(self.client_secret)}, Has PKCE: {bool(self.code_verifier)}")
         
         data = {
             'grant_type': 'authorization_code',
