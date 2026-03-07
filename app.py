@@ -221,15 +221,6 @@ app = Flask(__name__)
 app.secret_key = os.getenv('FLASK_SECRET_KEY', 'fantasy_basketball_predictor_dev_secret_123')
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=365)
 
-# Initialize Database on startup (runs once per Vercel cold start)
-try:
-    if os.getenv('DATABASE_URL'):
-        debug_print("[Startup] Initializing Database...")
-        db.init_db()
-        debug_print("[Startup] Database initialized!")
-except Exception as e:
-    print(f"[Startup] Database initialization error: {e}")
-
 
 # Make auth available in all templates
 @app.context_processor

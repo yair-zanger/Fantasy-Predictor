@@ -1,10 +1,11 @@
-"""
-Database module for managing users, subscriptions, promo codes, and settings.
-Uses PostgreSQL (Neon) for Vercel-compatible persistent storage.
-"""
-import os
-import psycopg2
-import psycopg2.extras
+try:
+    import psycopg2
+    import psycopg2.extras
+    PSYCOPG2_AVAILABLE = True
+except ImportError:
+    PSYCOPG2_AVAILABLE = False
+    print("[Database] Warning: psycopg2 not found. Database features will be unavailable.")
+
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -13,6 +14,10 @@ DATABASE_URL = os.getenv('DATABASE_URL', '')
 
 def get_connection():
     """Get a new connection to the PostgreSQL database."""
+    if not PSYCOPG2_AVAILABLE:
+        raise ImportError("psycopg2 is not installed or failed to load.")
+    if not DATABASE_URL:
+        raise ValueError("DATABASE_URL environment variable is not set.")
     return psycopg2.connect(DATABASE_URL, sslmode='require')
 
 
