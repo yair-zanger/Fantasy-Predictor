@@ -1218,61 +1218,6 @@ def debug_page():
         return f"<html><body style='background:#1a1a2e;color:red;padding:20px;'><h1>Error</h1><pre>{traceback.format_exc()}</pre></body></html>"
 
 
-@app.route('/admin')
-@admin_required
-def admin_page():
-    """Admin dashboard - manage subscriptions, trials, and promo codes."""
-    try:
-        # Get system stats
-        stats = {
-            'total_cached_keys': 0, # Placeholder or real cache count
-            'user_guid': api.get_user_guid(),
-            'token_expiry': auth.token_expiry.strftime('%Y-%m-%d %H:%M:%S') if auth.token_expiry else None,
-            'admin_emails': ADMIN_EMAILS,
-            'trial_days': db.get_trial_days(),
-            'users_count': len(db.get_all_users()),
-            'active_promo_count': sum(1 for p in db.get_all_promo_codes() if p['is_active'])
-        }
-        
-        users = db.get_all_users()
-        promo_codes = db.get_all_promo_codes()
-        
-        return render_template('admin.html', stats=stats, users=users, promo_codes=promo_codes)
-    except Exception as e:
-        import traceback
-        return f"<html><body style='background:#1a1a2e;color:red;padding:20px;'><h1>Admin Error</h1><pre>{traceback.format_exc()}</pre></body></html>"
-
-
-@app.route('/admin/settings', methods=['POST'])
-@admin_required
-def admin_save_settings():
-    """Save admin settings (like trial duration)."""
-    trial_days = request.form.get('trial_days')
-    if trial_days:
-        try:
-            db.set_setting('trial_days', str(int(trial_days)))
-        except ValueError:
-            pass
-    return redirect(url_for('admin_page'))
-
-
-@app.route('/admin/promo/create', methods=['POST'])
-@admin_required
-def admin_create_promo():
-    """Generate a new promo code."""
-    code = request.form.get('code', '').strip().upper()
-    if code:
-        db.create_promo_code(code)
-    return redirect(url_for('admin_page'))
-
-
-@app.route('/admin/promo/deactivate/<code_val>')
-@admin_required
-def admin_deactivate_promo(code_val):
-    """Deactivate a promo code."""
-    db.deactivate_promo_code(code_val)
-    return redirect(url_for('admin_page'))
-
 
 @app.route('/logout')
 def logout():
