@@ -16,7 +16,13 @@ IS_VERCEL = os.getenv('VERCEL') == '1'
 # We use .strip() and .split() to ensure we only get the actual ID if extra text was pasted
 _raw_client_id = os.getenv('YAHOO_CLIENT_ID', 'dj0yJmk9UEYyWGVWQnowaEVWJmQ9WVdrOWJYaHZiVEpuUjFjbWNHbzlNQT09JnM9Y29uc3VtZXJzZWNyZXQmc3Y9MCZ4PWY2')
 YAHOO_CLIENT_ID = _raw_client_id.strip().split('\n')[0].strip()
-YAHOO_CLIENT_SECRET = os.getenv('YAHOO_CLIENT_SECRET', '').strip()
+
+# For Public Clients, this MUST be empty. If it contains labels or "NONE", we clear it.
+_raw_secret = os.getenv('YAHOO_CLIENT_SECRET', '').strip()
+if _raw_secret.upper() in ['NONE', '', 'CLIENT SECRET', 'CONSUMER SECRET'] or 'CONSUMER' in _raw_secret.upper():
+    YAHOO_CLIENT_SECRET = ''
+else:
+    YAHOO_CLIENT_SECRET = _raw_secret
 
 # Yahoo API URLs
 YAHOO_AUTH_URL = 'https://api.login.yahoo.com/oauth2/request_auth'
