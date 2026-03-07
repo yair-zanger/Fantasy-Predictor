@@ -13,8 +13,10 @@ DEBUG_MODE = False
 IS_VERCEL = os.getenv('VERCEL') == '1'
 
 # Yahoo OAuth Credentials
-YAHOO_CLIENT_ID = os.getenv('YAHOO_CLIENT_ID', 'dj0yJmk9UEYyWGVWQnowaEVWJmQ9WVdrOWJYaHZiVEpuUjFjbWNHbzlNQT09JnM9Y29uc3VtZXJzZWNyZXQmc3Y9MCZ4PWY2')
-YAHOO_CLIENT_SECRET = os.getenv('YAHOO_CLIENT_SECRET', '')  # Empty for Public Client
+# We use .strip() and .split() to ensure we only get the actual ID if extra text was pasted
+_raw_client_id = os.getenv('YAHOO_CLIENT_ID', 'dj0yJmk9UEYyWGVWQnowaEVWJmQ9WVdrOWJYaHZiVEpuUjFjbWNHbzlNQT09JnM9Y29uc3VtZXJzZWNyZXQmc3Y9MCZ4PWY2')
+YAHOO_CLIENT_ID = _raw_client_id.strip().split('\n')[0].strip()
+YAHOO_CLIENT_SECRET = os.getenv('YAHOO_CLIENT_SECRET', '').strip()
 
 # Yahoo API URLs
 YAHOO_AUTH_URL = 'https://api.login.yahoo.com/oauth2/request_auth'
