@@ -1,5 +1,5 @@
 """
-Fantasy Basketball Predictor - Flask Web Application
+Fantasy Basketball Predictor - Flask Web Application (Classic Version)
 """
 import sys
 import io
