@@ -8,7 +8,7 @@ except ImportError:
     print("[Database] Warning: psycopg2 not found. Database features will be unavailable.")
 
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Optional, Tuple
 
 DATABASE_URL = os.getenv('DATABASE_URL', '')
 
@@ -19,7 +19,8 @@ def get_connection():
         raise ImportError("psycopg2 is not installed or failed to load.")
     if not DATABASE_URL:
         raise ValueError("DATABASE_URL environment variable is not set.")
-    return psycopg2.connect(DATABASE_URL, sslmode='require')
+    # Add a 5 second timeout to avoid hanging the entire function
+    return psycopg2.connect(DATABASE_URL, sslmode='require', connect_timeout=5)
 
 
 def init_db():
@@ -177,7 +178,7 @@ def create_promo_code(code: str) -> bool:
         return False
 
 
-def redeem_promo_code(code: str, guid: str) -> tuple[bool, str]:
+def redeem_promo_code(code: str, guid: str) -> Tuple[bool, str]:
     """
     Redeem a promo code for a user.
     Returns (success: bool, message: str).

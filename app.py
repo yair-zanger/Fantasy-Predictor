@@ -23,11 +23,9 @@ from predictor import predictor, PlayoffWeekError
 from config import CATEGORIES, DEBUG_MODE, IS_VERCEL, ADMIN_EMAILS, ADMIN_NICKNAMES, STRIPE_SECRET_KEY, STRIPE_PUBLISHABLE_KEY, STRIPE_WEBHOOK_SECRET, STRIPE_PRICE_ID
 import database as db
 
-# Initialize database tables
-try:
-    db.init_db()
-except Exception as e:
-    print(f"[Database] Initialization error: {e}")
+# Database is initialized lazily on the first request to avoid startup timeouts on Vercel.
+_db_initialized = False
+_db_lock = threading.Lock()
 
 def debug_print(*args, **kwargs):
     """Print only if DEBUG_MODE is enabled."""
@@ -268,6 +266,21 @@ def inject_auth():
         context['is_admin'] = False
         context['subscription'] = {}
     return context
+
+@app.before_request
+def ensure_db_init():
+    """Ensure the database tables are created before the first request."""
+    global _db_initialized
+    if not _db_initialized:
+        with _db_lock:
+            if not _db_initialized:
+                try:
+                    db.init_db()
+                    debug_print("[Database] Lazy initialization complete")
+                except Exception as e:
+                    print(f"[Database] Lazy initialization error: {e}")
+                finally:
+                    _db_initialized = True
 
 @app.route('/')
 def index():
